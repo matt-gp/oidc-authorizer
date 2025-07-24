@@ -1,0 +1,30 @@
+---
+name: test go
+
+on:
+  pull_request:
+    branches:
+    - main
+
+
+jobs:  
+  test:
+    runs-on: [ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+  
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: install dependencies
+        run: go mod download
+  
+      - name: lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          args: -v
+
+      - name: test
+        run: go test -v ./...
