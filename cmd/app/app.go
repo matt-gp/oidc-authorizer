@@ -1,9 +1,9 @@
 package main
 
 import (
-	"alai-shared/oidc-authorizer/internal/handler"
-	"alai-shared/oidc-authorizer/internal/service"
 	"log/slog"
+	"oidc-authorizer/internal/handler"
+	"oidc-authorizer/internal/service"
 	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"

@@ -8,11 +8,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
-
-	// mock "github.com/stretchr/testify/mock"
-
-	// mock "github.com/stretchr/testify/mock"
-	"github.com/golang/mock/gomock"
+	gomock "go.uber.org/mock/gomock"
 )
 
 func TestHandleV2Event(t *testing.T) {
@@ -25,7 +21,7 @@ func TestHandleV2Event(t *testing.T) {
 		mockClient := NewMockService(ctrl)
 
 		mockClient.EXPECT().ValidateToken(gomock.Any(), "valid-token").Return(true)
-		mockClient.EXPECT().GetPrincipalID().Return(randomPrincipalID)
+		mockClient.EXPECT().GetPrincipalID().Return(randomPrincipalID).Times(2)
 
 		h := NewHandler(mockClient)
 
@@ -55,7 +51,7 @@ func TestHandleV2Event(t *testing.T) {
 
 		mockClient := NewMockService(ctrl)
 		mockClient.EXPECT().ValidateToken(gomock.Any(), "invalid-token").Return(false)
-		mockClient.EXPECT().GetPrincipalID().Return(randomPrincipalID)
+		mockClient.EXPECT().GetPrincipalID().Return(randomPrincipalID).Times(2)
 
 		h := NewHandler(mockClient)
 
@@ -78,7 +74,10 @@ func TestHandleV2Event(t *testing.T) {
 	})
 
 	t.Run("no token", func(t *testing.T) {
-		s := &MockService{}
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		s := NewMockService(ctrl)
 		h := NewHandler(s)
 
 		event := events.APIGatewayV2CustomAuthorizerV2Request{}
