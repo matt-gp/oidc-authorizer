@@ -31,14 +31,10 @@ jobs:
       - name: Extract metadata
         id: meta
         run: |
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          MERGE_MSG=$(git log -1 --pretty=format:"%s")
-          
-          if [[ "$MERGE_MSG" =~ Merge\ pull\ request\ #[0-9]+\ from\ [^/]+/(.+) ]]; then
-            BRANCH="${BASH_REMATCH[1]}"
-          else
-            BRANCH="main"
-          fi
+
+          SHORT_SHA=$(git describe --always --dirty)
+          BRANCH_NAME_RAW=$(echo ${{ github.ref }} | sed 's/refs\/heads\///')
+          BRANCH=$(echo $BRANCH_NAME_RAW | tr -c '[:alnum:]_-' '-')
           
           TAG="${BRANCH}-${SHORT_SHA}"
           echo "Building tag: $TAG"
