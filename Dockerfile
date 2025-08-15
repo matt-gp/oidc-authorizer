@@ -7,7 +7,7 @@ RUN go mod download && go mod verify
 COPY . .
 ARG DOCKER_IMAGE_NAME=oidc-authorizer
 ARG DOCKER_IMAGE_VERSION=latest
-RUN go build -v -ldflags "-X main.Version=${DOCKER_IMAGE_VERSION} -X main.AppName=${DOCKER_IMAGE_NAME}" -o /run-app cmd/app/app.go
+RUN go build -v -ldflags "-X main.AppVersion=${DOCKER_IMAGE_VERSION} -X main.AppName=${DOCKER_IMAGE_NAME}" -o /run-app cmd/main.go
 
 
 FROM debian:stable-slim
