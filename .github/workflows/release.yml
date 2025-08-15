@@ -1,0 +1,47 @@
+name: release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24.1'
+
+      - name: Build binaries
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          MERGE_MSG=$(git log -1 --pretty=format:"%s")
+          
+          if [[ "$MERGE_MSG" =~ Merge\ pull\ request\ #[0-9]+\ from\ [^/]+/(.+) ]]; then
+            BRANCH="${BASH_REMATCH[1]}"
+          else
+            BRANCH="main"
+          fi
+          
+          VERSION="${BRANCH}-${SHORT_SHA}"
+          echo "Building version: $VERSION"
+          
+          # Build for linux amd64
+          GOOS=linux GOARCH=amd64 go build -ldflags "-X main.Version=$VERSION" -o "oidc-authorizer-$VERSION-linux-amd64" .
+          
+          # Build for linux arm64
+          GOOS=linux GOARCH=arm64 go build -ldflags "-X main.Version=$VERSION" -o "oidc-authorizer-$VERSION-linux-arm64" .
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: oidc-authorizer-binaries
+          path: oidc-authorizer-*
