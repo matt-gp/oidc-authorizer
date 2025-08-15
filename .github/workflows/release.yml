@@ -36,7 +36,7 @@ jobs:
           BRANCH_NAME_RAW=$(echo ${{ github.ref }} | sed 's/refs\/heads\///')
           BRANCH=$(echo $BRANCH_NAME_RAW | tr -c '[:alnum:]_-' '-')
           
-          TAG="${BRANCH}-${SHORT_SHA}"
+          TAG="${BRANCH}${SHORT_SHA}"
           echo "Building tag: $TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "branch=$BRANCH" >> $GITHUB_OUTPUT
