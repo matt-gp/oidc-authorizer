@@ -9,7 +9,8 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
-var Version = "dev" // This will be overridden by ldflags
+var AppName = "oidc-authorizer" // This will be overridden by ldflags
+var AppVersion = "dev"          // This will be overridden by ldflags
 
 func main() {
 	slog.Info("starting oidc-authorizer")
