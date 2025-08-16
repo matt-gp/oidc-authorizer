@@ -7,11 +7,21 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	otelapi "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/log/global"
 	gomock "go.uber.org/mock/gomock"
 )
 
 func TestHandleWebsocketEvent(t *testing.T) {
 	t.Run("valid token", func(t *testing.T) {
+		cleanup := setupOtelForTest(t)
+		defer cleanup()
+
+		logger := global.GetLoggerProvider().Logger("test")
+		meter := otelapi.GetMeterProvider().Meter("test")
+		tracer := otelapi.GetTracerProvider().Tracer("test")
+
 		randomPrincipalID := rand.Text()
 
 		ctrl := gomock.NewController(t)
@@ -22,7 +32,8 @@ func TestHandleWebsocketEvent(t *testing.T) {
 		mockClient.EXPECT().ValidateToken(gomock.Any(), "valid-token").Return(true)
 		mockClient.EXPECT().GetPrincipalID().Return(randomPrincipalID).Times(2)
 
-		h := NewHandler(mockClient)
+		h, err := New(logger, meter, tracer, mockClient)
+		require.NoError(t, err)
 
 		event := events.APIGatewayWebsocketProxyRequest{
 			Headers: map[string]string{
@@ -45,6 +56,13 @@ func TestHandleWebsocketEvent(t *testing.T) {
 	})
 
 	t.Run("invalid token", func(t *testing.T) {
+		cleanup := setupOtelForTest(t)
+		defer cleanup()
+
+		logger := global.GetLoggerProvider().Logger("test")
+		meter := otelapi.GetMeterProvider().Meter("test")
+		tracer := otelapi.GetTracerProvider().Tracer("test")
+
 		randomPrincipalID := rand.Text()
 
 		ctrl := gomock.NewController(t)
@@ -55,7 +73,8 @@ func TestHandleWebsocketEvent(t *testing.T) {
 		mockClient.EXPECT().ValidateToken(gomock.Any(), "invalid-token").Return(false)
 		mockClient.EXPECT().GetPrincipalID().Return(randomPrincipalID).Times(2)
 
-		h := NewHandler(mockClient)
+		h, err := New(logger, meter, tracer, mockClient)
+		require.NoError(t, err)
 
 		event := events.APIGatewayWebsocketProxyRequest{
 			Headers: map[string]string{
@@ -78,11 +97,19 @@ func TestHandleWebsocketEvent(t *testing.T) {
 	})
 
 	t.Run("no token", func(t *testing.T) {
+		cleanup := setupOtelForTest(t)
+		defer cleanup()
+
+		logger := global.GetLoggerProvider().Logger("test")
+		meter := otelapi.GetMeterProvider().Meter("test")
+		tracer := otelapi.GetTracerProvider().Tracer("test")
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
 		s := NewMockService(ctrl)
-		h := NewHandler(s)
+		h, err := New(logger, meter, tracer, s)
+		require.NoError(t, err)
 
 		event := events.APIGatewayWebsocketProxyRequest{}
 
@@ -93,6 +120,20 @@ func TestHandleWebsocketEvent(t *testing.T) {
 }
 
 func TestGetTokenFromWebsocketEvent(t *testing.T) {
+	cleanup := setupOtelForTest(t)
+	defer cleanup()
+
+	logger := global.GetLoggerProvider().Logger("test")
+	meter := otelapi.GetMeterProvider().Meter("test")
+	tracer := otelapi.GetTracerProvider().Tracer("test")
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	s := NewMockService(ctrl)
+	h, err := New(logger, meter, tracer, s)
+	require.NoError(t, err)
+
 	t.Run("header", func(t *testing.T) {
 
 		event := events.APIGatewayWebsocketProxyRequest{
@@ -100,14 +141,14 @@ func TestGetTokenFromWebsocketEvent(t *testing.T) {
 				"Authorization": "Bearer valid-token",
 			},
 		}
-		token, err := getTokenFromWebsocketEvent(event)
+		token, err := h.getTokenFromWebsocketEvent(context.Background(), event)
 		assert.NoError(t, err)
 		assert.Equal(t, "valid-token", token)
 	})
 
 	t.Run("no token", func(t *testing.T) {
 		event := events.APIGatewayWebsocketProxyRequest{}
-		token, err := getTokenFromWebsocketEvent(event)
+		token, err := h.getTokenFromWebsocketEvent(context.Background(), event)
 		assert.Error(t, err)
 		assert.Equal(t, "", token)
 	})

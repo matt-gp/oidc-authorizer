@@ -8,11 +8,21 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	otelapi "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/log/global"
 	gomock "go.uber.org/mock/gomock"
 )
 
 func TestHandleV2Event(t *testing.T) {
 	t.Run("valid token - header", func(t *testing.T) {
+		cleanup := setupOtelForTest(t)
+		defer cleanup()
+
+		logger := global.GetLoggerProvider().Logger("test")
+		meter := otelapi.GetMeterProvider().Meter("test")
+		tracer := otelapi.GetTracerProvider().Tracer("test")
+
 		randomPrincipalID := rand.Text()
 
 		ctrl := gomock.NewController(t)
@@ -23,7 +33,8 @@ func TestHandleV2Event(t *testing.T) {
 		mockClient.EXPECT().ValidateToken(gomock.Any(), "valid-token").Return(true)
 		mockClient.EXPECT().GetPrincipalID().Return(randomPrincipalID).Times(2)
 
-		h := NewHandler(mockClient)
+		h, err := New(logger, meter, tracer, mockClient)
+		require.NoError(t, err)
 
 		event := events.APIGatewayV2CustomAuthorizerV2Request{
 			IdentitySource: []string{"Bearer valid-token"},
@@ -44,6 +55,13 @@ func TestHandleV2Event(t *testing.T) {
 	})
 
 	t.Run("invalid token", func(t *testing.T) {
+		cleanup := setupOtelForTest(t)
+		defer cleanup()
+
+		logger := global.GetLoggerProvider().Logger("test")
+		meter := otelapi.GetMeterProvider().Meter("test")
+		tracer := otelapi.GetTracerProvider().Tracer("test")
+
 		randomPrincipalID := rand.Text()
 
 		ctrl := gomock.NewController(t)
@@ -53,7 +71,8 @@ func TestHandleV2Event(t *testing.T) {
 		mockClient.EXPECT().ValidateToken(gomock.Any(), "invalid-token").Return(false)
 		mockClient.EXPECT().GetPrincipalID().Return(randomPrincipalID).Times(2)
 
-		h := NewHandler(mockClient)
+		h, err := New(logger, meter, tracer, mockClient)
+		require.NoError(t, err)
 
 		event := events.APIGatewayV2CustomAuthorizerV2Request{
 			IdentitySource: []string{"Bearer invalid-token"},
@@ -74,11 +93,19 @@ func TestHandleV2Event(t *testing.T) {
 	})
 
 	t.Run("no token", func(t *testing.T) {
+		cleanup := setupOtelForTest(t)
+		defer cleanup()
+
+		logger := global.GetLoggerProvider().Logger("test")
+		meter := otelapi.GetMeterProvider().Meter("test")
+		tracer := otelapi.GetTracerProvider().Tracer("test")
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
 		s := NewMockService(ctrl)
-		h := NewHandler(s)
+		h, err := New(logger, meter, tracer, s)
+		require.NoError(t, err)
 
 		event := events.APIGatewayV2CustomAuthorizerV2Request{}
 
@@ -89,9 +116,23 @@ func TestHandleV2Event(t *testing.T) {
 }
 
 func TestGetTokenFromV2Event(t *testing.T) {
+	cleanup := setupOtelForTest(t)
+	defer cleanup()
+
+	logger := global.GetLoggerProvider().Logger("test")
+	meter := otelapi.GetMeterProvider().Meter("test")
+	tracer := otelapi.GetTracerProvider().Tracer("test")
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	s := NewMockService(ctrl)
+	h, err := New(logger, meter, tracer, s)
+	require.NoError(t, err)
+
 	t.Run("no token", func(t *testing.T) {
 		event := events.APIGatewayV2CustomAuthorizerV2Request{}
-		token, err := getTokenFromV2Event(event)
+		token, err := h.getTokenFromV2Event(context.Background(), event)
 		assert.Empty(t, token)
 		assert.Error(t, err)
 		assert.Equal(t, errors.New("no identity source found in event"), err)
@@ -103,7 +144,7 @@ func TestGetTokenFromV2Event(t *testing.T) {
 		event := events.APIGatewayV2CustomAuthorizerV2Request{
 			IdentitySource: []string{randomToken},
 		}
-		token, err := getTokenFromV2Event(event)
+		token, err := h.getTokenFromV2Event(context.Background(), event)
 		assert.NoError(t, err)
 		assert.Equal(t, randomToken, token)
 	})
@@ -113,7 +154,7 @@ func TestGetTokenFromV2Event(t *testing.T) {
 		event := events.APIGatewayV2CustomAuthorizerV2Request{
 			IdentitySource: []string{"Bearer " + randomToken},
 		}
-		token, err := getTokenFromV2Event(event)
+		token, err := h.getTokenFromV2Event(context.Background(), event)
 		assert.NoError(t, err)
 		assert.Equal(t, randomToken, token)
 	})

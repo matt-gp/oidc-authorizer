@@ -53,7 +53,18 @@ This project adheres to a code of conduct. By participating, you are expected to
    curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.54.2
    ```
 
-6. **Generate mocks and verify setup**:
+6. **Set up local OpenTelemetry development environment** (optional):
+   ```bash
+   # For local development with observability
+   export OTEL_SERVICE_NAME="oidc-authorizer-dev"
+   export OTEL_SERVICE_VERSION="dev"
+   export OTEL_TRACES_EXPORTER="console"
+   export OTEL_METRICS_EXPORTER="console"
+   export OTEL_LOGS_EXPORTER="console"
+   export OTEL_LOG_LEVEL="debug"
+   ```
+
+7. **Generate mocks and verify setup**:
    ```bash
    go generate ./...
    go test ./...
@@ -110,12 +121,51 @@ oidc-authorizer/
 ├── cmd/app/           # Application entry point
 ├── internal/
 │   ├── handler/       # HTTP handlers and routing
-│   └── service/       # Business logic
+│   ├── service/       # Business logic
+│   └── otel/         # OpenTelemetry utilities and configuration
 ├── .github/
 │   └── workflows/     # CI/CD workflows
 ├── Dockerfile         # Container definition
 └── README.md
 ```
+
+### OpenTelemetry Integration
+
+When adding new features, ensure proper observability integration:
+
+- **Logging**: Use OpenTelemetry structured logging from `internal/otel/logging.go`
+- **Tracing**: Add spans for significant operations using OpenTelemetry Go SDK
+- **Metrics**: Include relevant metrics for performance and error tracking
+- **Context**: Pass context through function calls for trace correlation
+
+#### Logging Guidelines
+
+```go
+// Use structured logging with OpenTelemetry
+import "github.com/matt-gp/oidc-authorizer/internal/otel"
+
+func YourFunction(ctx context.Context) {
+    logger := otel.GetLogger()
+    
+    // Info logging with structured fields
+    logger.InfoContext(ctx, "Processing request",
+        otel.String("operation", "token-validation"),
+        otel.String("issuer", issuer))
+    
+    // Error logging with error attribute
+    if err != nil {
+        logger.ErrorContext(ctx, "Validation failed",
+            otel.Err(err),
+            otel.String("token_id", tokenID))
+    }
+}
+```
+
+#### Testing with OpenTelemetry
+
+- Tests use console exporters to avoid network dependencies
+- OpenTelemetry is configured in test setup with appropriate test resource attributes
+- Mock OpenTelemetry components when testing integration points
 
 ## 🧪 Testing
 
@@ -133,6 +183,23 @@ go test -v ./...
 
 # Run specific package tests
 go test ./internal/handler/...
+
+# Run tests with OpenTelemetry observability (console output)
+OTEL_TRACES_EXPORTER=console OTEL_LOGS_EXPORTER=console go test -v ./...
+```
+
+### Testing Environment Variables
+
+The test suite uses these OpenTelemetry configurations:
+
+```bash
+# Test-specific OpenTelemetry settings (automatically set in tests)
+OTEL_SERVICE_NAME="oidc-authorizer-test"
+OTEL_SERVICE_VERSION="test"
+OTEL_TRACES_EXPORTER="console"
+OTEL_METRICS_EXPORTER="console"  
+OTEL_LOGS_EXPORTER="console"
+OTEL_RESOURCE_ATTRIBUTES="service.name=oidc-authorizer-test,service.version=test"
 ```
 
 ### Writing Tests
@@ -142,11 +209,15 @@ go test ./internal/handler/...
 - Mock external dependencies using gomock
 - Aim for >80% code coverage
 - Include both positive and negative test cases
+- Ensure OpenTelemetry integration doesn't interfere with test reliability
 
-#### Example Test Structure
+#### Example Test Structure with OpenTelemetry
 
 ```go
 func TestYourFunction(t *testing.T) {
+    // Setup test context with OpenTelemetry
+    ctx := context.Background()
+    
     tests := []struct {
         name     string
         input    string
@@ -155,7 +226,7 @@ func TestYourFunction(t *testing.T) {
     }{
         {
             name:     "valid input",
-            input:    "test",
+            input:    "test", 
             expected: "result",
             wantErr:  false,
         },
@@ -164,7 +235,7 @@ func TestYourFunction(t *testing.T) {
 
     for _, tt := range tests {
         t.Run(tt.name, func(t *testing.T) {
-            result, err := YourFunction(tt.input)
+            result, err := YourFunction(ctx, tt.input)
             
             if (err != nil) != tt.wantErr {
                 t.Errorf("YourFunction() error = %v, wantErr %v", err, tt.wantErr)
@@ -176,6 +247,23 @@ func TestYourFunction(t *testing.T) {
             }
         })
     }
+}
+```
+
+#### Testing OpenTelemetry Integration
+
+```go
+func TestWithObservability(t *testing.T) {
+    // Tests automatically use console exporters
+    // No network dependencies or external services needed
+    ctx := context.Background()
+    
+    // Your test code here - OpenTelemetry will output to console
+    // which can be captured and verified if needed
+    result, err := FunctionWithTracing(ctx, input)
+    
+    assert.NoError(t, err)
+    assert.Equal(t, expected, result)
 }
 ```
 

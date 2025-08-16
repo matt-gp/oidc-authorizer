@@ -5,9 +5,11 @@ WORKDIR /usr/src/app
 COPY go.mod go.sum ./
 RUN go mod download && go mod verify
 COPY . .
-ARG DOCKER_IMAGE_NAME=oidc-authorizer
-ARG DOCKER_IMAGE_VERSION=latest
-RUN go build -v -ldflags "-X main.AppVersion=${DOCKER_IMAGE_VERSION} -X main.AppName=${DOCKER_IMAGE_NAME}" -o /run-app cmd/main.go
+ARG OTEL_SERVICE_NAME=oidc-authorizer
+ARG OTEL_SERVICE_VERSION=1.0.0
+ENV OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME}
+ENV OTEL_SERVICE_VERSION=${OTEL_SERVICE_VERSION}
+RUN go build -v -o /run-app cmd/main.go
 
 
 FROM debian:stable-slim
