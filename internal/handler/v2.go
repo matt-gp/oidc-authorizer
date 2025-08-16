@@ -3,25 +3,44 @@ package handler
 import (
 	"context"
 	"errors"
-	"log/slog"
+	log "oidc-authorizer/internal/logger"
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
+	"go.opentelemetry.io/otel/codes"
 )
 
 func (h *Handler) HandleV2Event(ctx context.Context, event events.APIGatewayV2CustomAuthorizerV2Request) (events.APIGatewayV2CustomAuthorizerIAMPolicyResponse, error) {
 
-	slog.Info("handling event")
-	slog.Debug("event", "value", event)
-
-	token, err := getTokenFromV2Event(event)
+	member, err := baggage.NewMember("event-type", "v2")
 	if err != nil {
-		slog.Error("error getting token from event", "error", err)
+		return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, err
+	}
+	bg, err := baggage.New(member)
+	if err != nil {
+		return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, err
+	}
+	ctx = baggage.ContextWithBaggage(ctx, bg)
+
+	// Start tracing
+	ctx, span := h.tracer.Start(ctx, "handle-event")
+	defer span.End()
+
+	log.Info(ctx, h.logger, "handling event")
+	log.Debug(ctx, h.logger, "received v2 event")
+
+	token, err := h.getTokenFromV2Event(ctx, event)
+	if err != nil {
+		log.Error(ctx, h.logger, "error getting token from event", log.Err(err))
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, err
 	}
 
 	valid := h.s.ValidateToken(ctx, token)
-	slog.Debug("token validation result", "valid", valid)
+	log.Debug(ctx, h.logger, "token validation result", log.Bool("valid", valid))
 
 	policyEffect := "Deny"
 	if valid {
@@ -46,17 +65,28 @@ func (h *Handler) HandleV2Event(ctx context.Context, event events.APIGatewayV2Cu
 		},
 	}
 
-	slog.Info("returning policy response")
-	slog.Debug("policy response", "value", resp)
+	log.Info(ctx, h.logger, "returning policy response")
+	log.Debug(ctx, h.logger, "policy response created")
+
+	span.SetAttributes(attribute.Bool("valid", valid))
+	span.SetStatus(codes.Ok, "v2 event handled successfully")
 
 	return resp, nil
 }
 
-func getTokenFromV2Event(event events.APIGatewayV2CustomAuthorizerV2Request) (string, error) {
+func (h *Handler) getTokenFromV2Event(ctx context.Context, event events.APIGatewayV2CustomAuthorizerV2Request) (string, error) {
+
+	_, span := h.tracer.Start(ctx, "get-token")
+	defer span.End()
 
 	if len(event.IdentitySource) == 0 {
-		return "", errors.New("no identity source found in event")
+		err := errors.New("no identity source found in event")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return "", err
 	}
+
+	span.SetStatus(codes.Ok, "identity source found")
 
 	if strings.Count(event.IdentitySource[0], " ") == 0 {
 		return event.IdentitySource[0], nil

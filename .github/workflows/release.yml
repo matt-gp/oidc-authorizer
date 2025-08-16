@@ -63,5 +63,5 @@ jobs:
             org.opencontainers.image.vendor=${{ github.repository_owner }}
             org.opencontainers.image.authors=${{ github.repository_owner }}
           build-args: |
-            DOCKER_IMAGE_NAME=oidc-authorizer
-            DOCKER_IMAGE_VERSION=${{ steps.meta.outputs.tag }}
+            OTEL_SERVICE_NAME=oidc-authorizer
+            OTEL_SERVICE_VERSION=${{ steps.meta.outputs.tag }}

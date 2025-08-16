@@ -33,3 +33,6 @@ go.work.sum
 
 # mockgen generated files
 *_mock.go
+
+# Binaries
+main
