@@ -1,4 +1,4 @@
-module oidc-authorizer
+module github.com/matt-gp/oidc-authorizer
 
 go 1.24.1
 

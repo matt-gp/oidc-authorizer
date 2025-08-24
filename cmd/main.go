@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"oidc-authorizer/internal/handler"
-	log "oidc-authorizer/internal/logger"
-	"oidc-authorizer/internal/otel"
-	"oidc-authorizer/internal/service"
 	"os"
+
+	"github.com/matt-gp/oidc-authorizer/internal/handler"
+	"github.com/matt-gp/oidc-authorizer/internal/logger"
+	"github.com/matt-gp/oidc-authorizer/internal/otel"
+	"github.com/matt-gp/oidc-authorizer/internal/service"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"go.opentelemetry.io/otel/codes"
@@ -28,20 +29,20 @@ func main() {
 		}
 	}()
 
-	logger := provider.LoggerProvider.Logger("oidc-authorizer")
-	meter := provider.MeterProvider.Meter("oidc-authorizer")
-	tracer := provider.TracerProvider.Tracer("oidc-authorizer")
+	l := provider.LoggerProvider.Logger("oidc-authorizer")
+	m := provider.MeterProvider.Meter("oidc-authorizer")
+	t := provider.TracerProvider.Tracer("oidc-authorizer")
 
 	// Start tracing
-	ctx, span := tracer.Start(ctx, "main")
+	ctx, span := t.Start(ctx, "main")
 	defer span.End()
 
-	log.Info(ctx, logger, "starting oidc-authorizer")
+	logger.Info(ctx, l, "starting oidc-authorizer")
 
 	acceptedIssuers := os.Getenv("ACCEPTED_ISSUERS")
 	if acceptedIssuers == "" {
 		err := errors.New("ACCEPTED_ISSUERS env var not set")
-		log.Error(ctx, logger, err.Error())
+		logger.Error(ctx, l, err.Error())
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		os.Exit(1)
@@ -50,7 +51,7 @@ func main() {
 	jwksURI := os.Getenv("JWKS_URI")
 	if jwksURI == "" {
 		err := errors.New("JWKS_URI env var not set")
-		log.Error(ctx, logger, err.Error())
+		logger.Error(ctx, l, err.Error())
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		os.Exit(1)
@@ -59,21 +60,21 @@ func main() {
 	principalIDClaims := os.Getenv("PRINCIPAL_ID_CLAIMS")
 	if principalIDClaims == "" {
 		principalIDClaims = "sub"
-		log.Debug(ctx, logger, "PRINCIPAL_ID_CLAIMS env var not set using default",
-			log.String("principal_id_claims", principalIDClaims))
+		logger.Debug(ctx, l, "PRINCIPAL_ID_CLAIMS env var not set using default",
+			logger.String("principal_id_claims", principalIDClaims))
 	}
 
-	s, err := service.New(logger, meter, tracer, acceptedIssuers, jwksURI, principalIDClaims)
+	s, err := service.New(l, m, t, acceptedIssuers, jwksURI, principalIDClaims)
 	if err != nil {
-		log.Error(ctx, logger, err.Error())
+		logger.Error(ctx, l, err.Error())
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		os.Exit(1)
 	}
 
-	h, err := handler.New(logger, meter, tracer, s)
+	h, err := handler.New(l, m, t, s)
 	if err != nil {
-		log.Error(ctx, logger, err.Error())
+		logger.Error(ctx, l, err.Error())
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		os.Exit(1)
@@ -81,5 +82,5 @@ func main() {
 
 	lambda.Start(h.RouteEvent)
 
-	log.Info(ctx, logger, "stopping oidc-authorizer")
+	logger.Info(ctx, l, "stopping oidc-authorizer")
 }

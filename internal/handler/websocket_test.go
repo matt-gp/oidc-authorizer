@@ -8,9 +8,9 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	otelapi "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/log/global"
-	gomock "go.uber.org/mock/gomock"
+	"go.uber.org/mock/gomock"
 )
 
 func TestHandleWebsocketEvent(t *testing.T) {
@@ -19,8 +19,8 @@ func TestHandleWebsocketEvent(t *testing.T) {
 		defer cleanup()
 
 		logger := global.GetLoggerProvider().Logger("test")
-		meter := otelapi.GetMeterProvider().Meter("test")
-		tracer := otelapi.GetTracerProvider().Tracer("test")
+		meter := otel.GetMeterProvider().Meter("test")
+		tracer := otel.GetTracerProvider().Tracer("test")
 
 		randomPrincipalID := rand.Text()
 
@@ -60,8 +60,8 @@ func TestHandleWebsocketEvent(t *testing.T) {
 		defer cleanup()
 
 		logger := global.GetLoggerProvider().Logger("test")
-		meter := otelapi.GetMeterProvider().Meter("test")
-		tracer := otelapi.GetTracerProvider().Tracer("test")
+		meter := otel.GetMeterProvider().Meter("test")
+		tracer := otel.GetTracerProvider().Tracer("test")
 
 		randomPrincipalID := rand.Text()
 
@@ -101,8 +101,8 @@ func TestHandleWebsocketEvent(t *testing.T) {
 		defer cleanup()
 
 		logger := global.GetLoggerProvider().Logger("test")
-		meter := otelapi.GetMeterProvider().Meter("test")
-		tracer := otelapi.GetTracerProvider().Tracer("test")
+		meter := otel.GetMeterProvider().Meter("test")
+		tracer := otel.GetTracerProvider().Tracer("test")
 
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -124,8 +124,8 @@ func TestGetTokenFromWebsocketEvent(t *testing.T) {
 	defer cleanup()
 
 	logger := global.GetLoggerProvider().Logger("test")
-	meter := otelapi.GetMeterProvider().Meter("test")
-	tracer := otelapi.GetTracerProvider().Tracer("test")
+	meter := otel.GetMeterProvider().Meter("test")
+	tracer := otel.GetTracerProvider().Tracer("test")
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

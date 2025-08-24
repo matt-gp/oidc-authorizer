@@ -2,8 +2,9 @@ package handler
 
 import (
 	"context"
-	"oidc-authorizer/internal/otel"
 	"testing"
+
+	"github.com/matt-gp/oidc-authorizer/internal/otel"
 
 	otelapi "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/log/global"

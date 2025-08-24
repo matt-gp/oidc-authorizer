@@ -3,8 +3,9 @@ package handler
 import (
 	"context"
 	"errors"
-	"oidc-authorizer/internal/logger"
 	"strings"
+
+	"github.com/matt-gp/oidc-authorizer/internal/logger"
 
 	"github.com/aws/aws-lambda-go/events"
 	"go.opentelemetry.io/otel/attribute"
