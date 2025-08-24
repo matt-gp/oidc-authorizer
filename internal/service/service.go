@@ -3,14 +3,14 @@ package service
 import (
 	"context"
 	"fmt"
-	log "oidc-authorizer/internal/logger"
+	"oidc-authorizer/internal/logger"
 	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	otelLog "go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -20,14 +20,14 @@ type Service struct {
 	JwksUri               string
 	PrincipalIDClaims     string
 	PrincipalID           string
-	logger                otelLog.Logger
+	logger                log.Logger
 	meter                 metric.Meter
 	tracer                trace.Tracer
 	tokenValidatorCounter metric.Int64Counter
 	tokenValidatorLatency metric.Float64Histogram
 }
 
-func New(logger otelLog.Logger, meter metric.Meter, tracer trace.Tracer, acceptedIssuers string, jwksuri string, principalIdClaims string) (*Service, error) {
+func New(logger log.Logger, meter metric.Meter, tracer trace.Tracer, acceptedIssuers string, jwksuri string, principalIdClaims string) (*Service, error) {
 
 	tokenValidatorCounter, err := meter.Int64Counter(
 		"oidc_authorizer_token_validator_total",
@@ -65,13 +65,13 @@ func (s *Service) ValidateToken(ctx context.Context, token string) bool {
 	ctx, span := s.tracer.Start(ctx, "validate-token")
 	defer span.End()
 
-	log.Info(ctx, s.logger, "validating token")
-	log.Debug(ctx, s.logger, "token", log.String("value", token))
+	logger.Info(ctx, s.logger, "validating token")
+	logger.Debug(ctx, s.logger, "token", logger.String("value", token))
 
 	jwKeys, err := jwk.Fetch(ctx, s.JwksUri)
 	if err != nil {
 
-		log.Error(ctx, s.logger, "failed to fetch JWKs", log.Err(err))
+		logger.Error(ctx, s.logger, "failed to fetch JWKs", logger.Err(err))
 
 		metricAttributes := []attribute.KeyValue{
 			attribute.String("status", "error"),
@@ -90,7 +90,7 @@ func (s *Service) ValidateToken(ctx context.Context, token string) bool {
 
 	jwToken, err := jwt.Parse([]byte(token), jwt.WithKeySet(jwKeys))
 	if err != nil {
-		log.Error(ctx, s.logger, "failed to parse JWT", log.Err(err))
+		logger.Error(ctx, s.logger, "failed to parse JWT", logger.Err(err))
 
 		metricAttributes := []attribute.KeyValue{
 			attribute.String("status", "error"),
@@ -109,7 +109,7 @@ func (s *Service) ValidateToken(ctx context.Context, token string) bool {
 
 	if err := jwt.Validate(jwToken, jwt.WithIssuer(s.AcceptedIssuers)); err != nil {
 
-		log.Error(ctx, s.logger, "failed to verify JWT", log.Err(err))
+		logger.Error(ctx, s.logger, "failed to verify JWT", logger.Err(err))
 
 		metricAttributes := []attribute.KeyValue{
 			attribute.String("status", "error"),
@@ -129,7 +129,7 @@ func (s *Service) ValidateToken(ctx context.Context, token string) bool {
 	var principalID string
 	if err := jwToken.Get(s.PrincipalIDClaims, &principalID); err != nil {
 
-		log.Error(ctx, s.logger, "failed to get principal ID claim", log.Err(err))
+		logger.Error(ctx, s.logger, "failed to get principal ID claim", logger.Err(err))
 
 		metricAttributes := []attribute.KeyValue{
 			attribute.String("status", "error"),

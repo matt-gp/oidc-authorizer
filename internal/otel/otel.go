@@ -8,9 +8,11 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/exporters/prometheus"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutlog"
 	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
@@ -20,6 +22,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 )
 
 type Provider struct {
@@ -39,6 +42,10 @@ func NewProvider() (*Provider, error) {
 	// Create resource with service information - the SDK will automatically
 	// merge this with OTEL_RESOURCE_ATTRIBUTES from environment
 	res, err := resource.New(context.Background(),
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String(os.Getenv("OTEL_SERVICE_NAME")),
+			semconv.ServiceVersionKey.String(os.Getenv("OTEL_SERVICE_VERSION")),
+		),
 		resource.WithFromEnv(),   // Automatically parse OTEL_RESOURCE_ATTRIBUTES
 		resource.WithProcess(),   // Add process information
 		resource.WithOS(),        // Add OS information
@@ -131,8 +138,12 @@ func (p *Provider) initLogging(res *resource.Resource) error {
 		exporter = "console" // Default to console
 	}
 
-	// Skip if logs are disabled
+	// Skip if logs are disabled - but still create a no-op provider
 	if exporter == "none" {
+		// Create a no-op logger provider for when logging is disabled
+		p.LoggerProvider = log.NewLoggerProvider(
+			log.WithResource(res),
+		)
 		return nil
 	}
 
@@ -141,8 +152,20 @@ func (p *Provider) initLogging(res *resource.Resource) error {
 
 	switch exporter {
 	case "otlp":
-		// OTLP log exporter automatically reads OTEL_EXPORTER_OTLP_* environment variables
-		logExporter, err = otlploggrpc.New(context.Background())
+		// Check protocol preference - HTTP or gRPC
+		protocol := os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL")
+		if protocol == "" {
+			protocol = "http/protobuf" // Default to HTTP with protobuf to avoid trace ID encoding issues
+		}
+
+		switch protocol {
+		case "http/protobuf", "http":
+			logExporter, err = otlploghttp.New(context.Background())
+		case "grpc":
+			logExporter, err = otlploggrpc.New(context.Background())
+		default:
+			return fmt.Errorf("unsupported OTLP protocol: %q", protocol)
+		}
 	case "console":
 		logExporter, err = stdoutlog.New()
 	default:
@@ -178,15 +201,31 @@ func (p *Provider) initMetrics(res *resource.Resource) error {
 
 	switch exporter {
 	case "otlp":
-		// OTLP metric exporter automatically reads OTEL_EXPORTER_OTLP_* environment variables
-		metricExporter, err := otlpmetricgrpc.New(context.Background())
+		// Check protocol preference - HTTP or gRPC
+		protocol := os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL")
+		if protocol == "" {
+			protocol = "http/protobuf" // Default to HTTP with protobuf to avoid trace ID encoding issues
+		}
+
+		var metricExporter metric.Exporter
+		switch protocol {
+		case "http/protobuf", "http":
+			metricExporter, err = otlpmetrichttp.New(context.Background(),
+				otlpmetrichttp.WithTemporalitySelector(metric.DefaultTemporalitySelector),
+			)
+		case "grpc":
+			metricExporter, err = otlpmetricgrpc.New(context.Background(),
+				otlpmetricgrpc.WithTemporalitySelector(metric.DefaultTemporalitySelector),
+			)
+		default:
+			return fmt.Errorf("unsupported OTLP protocol: %q", protocol)
+		}
+
 		if err != nil {
 			return err
 		}
 		// Periodic reader automatically configures interval from OTEL_METRIC_EXPORT_INTERVAL
 		reader = metric.NewPeriodicReader(metricExporter)
-	case "prometheus":
-		reader, err = prometheus.New()
 	case "console":
 		metricExporter, err := stdoutmetric.New()
 		if err != nil {
@@ -226,8 +265,20 @@ func (p *Provider) initTracing(res *resource.Resource) error {
 
 	switch exporter {
 	case "otlp":
-		// OTLP exporter automatically reads OTEL_EXPORTER_OTLP_* environment variables
-		traceExporter, err = otlptracegrpc.New(context.Background())
+		// Check protocol preference - HTTP or gRPC
+		protocol := os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL")
+		if protocol == "" {
+			protocol = "http/protobuf" // Default to HTTP with protobuf to avoid trace ID encoding issues
+		}
+
+		switch protocol {
+		case "http/protobuf", "http":
+			traceExporter, err = otlptracehttp.New(context.Background())
+		case "grpc":
+			traceExporter, err = otlptracegrpc.New(context.Background())
+		default:
+			return fmt.Errorf("unsupported OTLP protocol: %q", protocol)
+		}
 	case "console":
 		traceExporter, err = stdouttrace.New(stdouttrace.WithPrettyPrint())
 	default:

@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func TestNew(t *testing.T) {
+func TestNewProvider(t *testing.T) {
 	tests := []struct {
 		name        string
 		envVars     map[string]string
@@ -78,8 +78,17 @@ func TestNew(t *testing.T) {
 			},
 			wantErr: false,
 			checkFunc: func(t *testing.T, p *Provider) {
-				// With exporters set to "none", providers should still be initialized
-				// but no data will be exported
+				// With exporters set to "none", only logger provider should be initialized (no-op)
+				// Traces and metrics providers remain nil when disabled
+				if p.TracerProvider != nil {
+					t.Error("Expected tracer provider to be nil when traces exporter is 'none'")
+				}
+				if p.MeterProvider != nil {
+					t.Error("Expected meter provider to be nil when metrics exporter is 'none'")
+				}
+				if p.LoggerProvider == nil {
+					t.Error("Expected logger provider to be initialized as no-op when logs exporter is 'none'")
+				}
 			},
 		},
 		{
@@ -117,6 +126,9 @@ func TestNew(t *testing.T) {
 			}
 
 			provider, err := NewProvider()
+			if err != nil {
+				t.Fatalf("Failed to setup provider: %v", err)
+			}
 
 			if tt.wantErr {
 				if err == nil {

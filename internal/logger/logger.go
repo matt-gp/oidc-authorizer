@@ -9,7 +9,7 @@ import (
 
 func Debug(ctx context.Context, logger log.Logger, msg string, attrs ...log.KeyValue) {
 
-	if getLogLevelFromEnv() >= log.SeverityDebug {
+	if getLogLevelFromEnv() > log.SeverityDebug {
 		return
 	}
 
@@ -22,10 +22,25 @@ func Debug(ctx context.Context, logger log.Logger, msg string, attrs ...log.KeyV
 	logger.Emit(ctx, record)
 }
 
+func Trace(ctx context.Context, logger log.Logger, msg string, attrs ...log.KeyValue) {
+
+	if getLogLevelFromEnv() > log.SeverityTrace {
+		return
+	}
+
+	record := log.Record{}
+	record.SetSeverity(log.SeverityTrace)
+	record.SetBody(log.StringValue(msg))
+	if len(attrs) > 0 {
+		record.AddAttributes(attrs...)
+	}
+	logger.Emit(ctx, record)
+}
+
 // Info emits an info log using OpenTelemetry logging
 func Info(ctx context.Context, logger log.Logger, msg string, attrs ...log.KeyValue) {
 
-	if getLogLevelFromEnv() >= log.SeverityInfo {
+	if getLogLevelFromEnv() > log.SeverityInfo {
 		return
 	}
 
@@ -41,7 +56,7 @@ func Info(ctx context.Context, logger log.Logger, msg string, attrs ...log.KeyVa
 // Warn emits a warning log using OpenTelemetry logging
 func Warn(ctx context.Context, logger log.Logger, msg string, attrs ...log.KeyValue) {
 
-	if getLogLevelFromEnv() >= log.SeverityWarn {
+	if getLogLevelFromEnv() > log.SeverityWarn {
 		return
 	}
 
