@@ -1,7 +1,7 @@
 # OIDC Authorizer
 
 [![Release](https://github.com/matt-gp/oidc-authorizer/actions/workflows/release.yml/badge.svg)](https://github.com/matt-gp/oidc-authorizer/actions/workflows/release.yml)
-[![Test](https://github.com/matt-gp/oidc-authorizer/actions/workflows/test-go.yml/badge.svg)](https://github.com/matt-gp/oidc-authorizer/actions/workflows/test-go.yml)
+[![Test](https://github.com/matt-gp/oidc-authorizer/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/matt-gp/oidc-authorizer/actions/workflows/test.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/matt-gp/oidc-authorizer)](https://goreportcard.com/report/github.com/matt-gp/oidc-authorizer)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
