@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	log "oidc-authorizer/internal/logger"
+	"oidc-authorizer/internal/logger"
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	otelLog "go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -29,14 +29,14 @@ type AuthEvent struct {
 
 type Handler struct {
 	s                   Service
-	logger              otelLog.Logger
+	logger              log.Logger
 	meter               metric.Meter
 	tracer              trace.Tracer
 	eventHandlerCounter metric.Int64Counter
 	eventHandlerLatency metric.Float64Histogram
 }
 
-func New(logger otelLog.Logger, meter metric.Meter, tracer trace.Tracer, s Service) (*Handler, error) {
+func New(logger log.Logger, meter metric.Meter, tracer trace.Tracer, s Service) (*Handler, error) {
 
 	eventHandlerCounter, err := meter.Int64Counter(
 		"oidc_authorizer_event_handler_total",
@@ -73,12 +73,12 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 	ctx, span := h.tracer.Start(ctx, "route-event")
 	defer span.End()
 
-	log.Debug(ctx, h.logger, "routing event")
+	logger.Debug(ctx, h.logger, "routing event")
 
 	eventJson, err := json.Marshal(event)
 	if err != nil {
 
-		log.Error(ctx, h.logger, "error marshalling event", log.Err(err))
+		logger.Error(ctx, h.logger, "error marshalling event", logger.Err(err))
 
 		attributes := []attribute.KeyValue{
 			attribute.String("status", "error"),
@@ -98,7 +98,7 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 	var authEvent AuthEvent
 	if err := json.Unmarshal(eventJson, &authEvent); err != nil {
 
-		log.Error(ctx, h.logger, "error unmarshalling event", log.Err(err))
+		logger.Error(ctx, h.logger, "error unmarshalling event", logger.Err(err))
 
 		attributes := []attribute.KeyValue{
 			attribute.String("status", "error"),
@@ -117,13 +117,13 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 
 	if authEvent.Version == "1.0" {
 
-		log.Debug(ctx, h.logger, "routing v1 event")
+		logger.Debug(ctx, h.logger, "routing v1 event")
 
 		var v1Event events.APIGatewayV2CustomAuthorizerV1Request
 
 		if err := json.Unmarshal(eventJson, &v1Event); err != nil {
 
-			log.Error(ctx, h.logger, "error unmarshalling v1 event", log.Err(err))
+			logger.Error(ctx, h.logger, "error unmarshalling v1 event", logger.Err(err))
 
 			attributes := []attribute.KeyValue{
 				attribute.String("status", "error"),
@@ -158,11 +158,11 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 
 	if authEvent.Version == "2.0" {
 
-		log.Debug(ctx, h.logger, "routing v2 event")
+		logger.Debug(ctx, h.logger, "routing v2 event")
 
 		if err := json.Unmarshal(eventJson, &v2Event); err != nil {
 
-			log.Error(ctx, h.logger, "error unmarshalling v2 event", log.Err(err))
+			logger.Error(ctx, h.logger, "error unmarshalling v2 event", logger.Err(err))
 
 			attributes := []attribute.KeyValue{
 				attribute.String("status", "error"),
@@ -193,13 +193,13 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 		return h.HandleV2Event(ctx, v2Event)
 	}
 
-	log.Debug(ctx, h.logger, "routing websocket event")
+	logger.Debug(ctx, h.logger, "routing websocket event")
 
 	var websocketEvent events.APIGatewayWebsocketProxyRequest
 
 	if err := json.Unmarshal(eventJson, &websocketEvent); err != nil {
 
-		log.Error(ctx, h.logger, "error unmarshalling websocket event", log.Err(err))
+		logger.Error(ctx, h.logger, "error unmarshalling websocket event", logger.Err(err))
 
 		attributes := []attribute.KeyValue{
 			attribute.String("status", "error"),
