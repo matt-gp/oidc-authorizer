@@ -29,4 +29,10 @@ go.work.sum
 
 # Editor/IDE
 # .idea/
-# .vscode/
+.vscode/
+
+# mockgen generated files
+*_mock.go
+
+# Binaries
+main
