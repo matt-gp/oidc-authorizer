@@ -3,8 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
-	"oidc-authorizer/internal/logger"
 	"time"
+
+	"github.com/matt-gp/oidc-authorizer/internal/logger"
 
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"

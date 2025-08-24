@@ -16,9 +16,10 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
-	"oidc-authorizer/internal/otel"
 	"testing"
 	"time"
+
+	"github.com/matt-gp/oidc-authorizer/internal/otel"
 
 	jwCert "github.com/lestrrat-go/jwx/v3/cert"
 	"github.com/lestrrat-go/jwx/v3/jwa"

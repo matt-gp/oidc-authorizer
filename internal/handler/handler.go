@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"oidc-authorizer/internal/logger"
 	"time"
+
+	"github.com/matt-gp/oidc-authorizer/internal/logger"
 
 	"github.com/aws/aws-lambda-go/events"
 	"go.opentelemetry.io/otel/attribute"

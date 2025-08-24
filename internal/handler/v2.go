@@ -3,8 +3,9 @@ package handler
 import (
 	"context"
 	"errors"
-	log "oidc-authorizer/internal/logger"
 	"strings"
+
+	"github.com/matt-gp/oidc-authorizer/internal/logger"
 
 	"github.com/aws/aws-lambda-go/events"
 	"go.opentelemetry.io/otel/attribute"
@@ -17,19 +18,19 @@ func (h *Handler) HandleV2Event(ctx context.Context, event events.APIGatewayV2Cu
 	ctx, span := h.tracer.Start(ctx, "handle-event")
 	defer span.End()
 
-	log.Info(ctx, h.logger, "handling event")
-	log.Debug(ctx, h.logger, "received v2 event")
+	logger.Info(ctx, h.logger, "handling event")
+	logger.Debug(ctx, h.logger, "received v2 event")
 
 	token, err := h.getTokenFromV2Event(ctx, event)
 	if err != nil {
-		log.Error(ctx, h.logger, "error getting token from event", log.Err(err))
+		logger.Error(ctx, h.logger, "error getting token from event", logger.Err(err))
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, err
 	}
 
 	valid := h.s.ValidateToken(ctx, token)
-	log.Debug(ctx, h.logger, "token validation result", log.Bool("valid", valid))
+	logger.Debug(ctx, h.logger, "token validation result", logger.Bool("valid", valid))
 
 	policyEffect := "Deny"
 	if valid {
@@ -54,8 +55,8 @@ func (h *Handler) HandleV2Event(ctx context.Context, event events.APIGatewayV2Cu
 		},
 	}
 
-	log.Info(ctx, h.logger, "returning policy response")
-	log.Debug(ctx, h.logger, "policy response created")
+	logger.Info(ctx, h.logger, "returning policy response")
+	logger.Debug(ctx, h.logger, "policy response created")
 
 	span.SetAttributes(attribute.Bool("valid", valid))
 	span.SetStatus(codes.Ok, "v2 event handled successfully")
