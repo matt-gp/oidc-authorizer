@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func TestNewProvider(t *testing.T) {
+func TestNew(t *testing.T) {
 	tests := []struct {
 		name        string
 		envVars     map[string]string
@@ -152,7 +152,7 @@ func TestNewProvider(t *testing.T) {
 	}
 }
 
-func TestProvider_Shutdown(t *testing.T) {
+func TestShutdown(t *testing.T) {
 	tests := []struct {
 		name           string
 		setupEnvVars   map[string]string
