@@ -1,6 +1,6 @@
 module github.com/matt-gp/oidc-authorizer
 
-go 1.24.1
+go 1.25.0
 
 require (
 	github.com/aws/aws-lambda-go v1.49.0
