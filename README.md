@@ -26,7 +26,7 @@ A lightweight, high-performance OIDC JWT token authorizer for AWS API Gateway La
 docker pull ghcr.io/matt-gp/oidc-authorizer:latest
 
 # Run with environment variables
-docker run -e JWKS_URI="https://your-oidc-provider/.well-known/jwks.json" \
+docker run -e JWKS_URI="https://your-oidc-provider" \
            -e ACCEPTED_ISSUERS="https://your-oidc-provider" \
            ghcr.io/matt-gp/oidc-authorizer:latest
 ```
@@ -81,7 +81,7 @@ The authorizer is configured using environment variables:
 
 #### Basic Configuration
 ```bash
-export JWKS_URI="https://your-oidc-provider.com/.well-known/jwks.json"
+export JWKS_URI="https://your-oidc-provider.com"
 export ACCEPTED_ISSUERS="https://your-oidc-provider.com,https://another-provider.com"
 export PRINCIPAL_ID_CLAIMS="sub,preferred_username"
 ```
@@ -89,7 +89,7 @@ export PRINCIPAL_ID_CLAIMS="sub,preferred_username"
 #### With OpenTelemetry Observability
 ```bash
 # Core configuration
-export JWKS_URI="https://your-oidc-provider.com/.well-known/jwks.json"
+export JWKS_URI="https://your-oidc-provider.com"
 export ACCEPTED_ISSUERS="https://your-oidc-provider.com"
 
 # OpenTelemetry configuration
@@ -105,7 +105,7 @@ export OTEL_RESOURCE_ATTRIBUTES="environment=production,region=us-east-1"
 #### Development with Console Output (Default)
 ```bash
 # Core configuration
-export JWKS_URI="https://your-oidc-provider.com/.well-known/jwks.json"
+export JWKS_URI="https://your-oidc-provider.com"
 export ACCEPTED_ISSUERS="https://your-oidc-provider.com"
 
 # Console exporters are now the default - no additional configuration needed!
@@ -182,7 +182,7 @@ resource "aws_lambda_function" "oidc_authorizer" {
   environment {
     variables = {
       # Core configuration
-      JWKS_URI = "https://your-oidc-provider.com/.well-known/jwks.json"
+      JWKS_URI = "https://your-oidc-provider.com"
       ACCEPTED_ISSUERS = "https://your-oidc-provider.com"
       PRINCIPAL_ID_CLAIMS = "sub,preferred_username"
       
