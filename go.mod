@@ -3,7 +3,7 @@ module github.com/matt-gp/oidc-authorizer
 go 1.25.0
 
 require (
-	github.com/aws/aws-lambda-go v1.51.0
+	github.com/aws/aws-lambda-go v1.51.1
 	github.com/lestrrat-go/jwx/v3 v3.0.12
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.39.0
