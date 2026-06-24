@@ -61,6 +61,12 @@ func createCaCertificate() (*x509.Certificate, *rsa.PrivateKey, *bytes.Buffer, *
 	caPrivKey, _ := rsa.GenerateKey(rand.Reader, 2048)
 	caBytes, _ := x509.CreateCertificate(rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey)
 
+	parsedCA, err := x509.ParseCertificate(caBytes)
+	if err != nil {
+		fmt.Printf("failed to parse CA certificate: %s\n", err)
+		return nil, nil, nil, nil
+	}
+
 	caPEM := new(bytes.Buffer)
 	if err := pem.Encode(caPEM, &pem.Block{Type: "CERTIFICATE", Bytes: caBytes}); err != nil {
 		fmt.Printf("failed to encode certificate: %s\n", err)
@@ -73,7 +79,7 @@ func createCaCertificate() (*x509.Certificate, *rsa.PrivateKey, *bytes.Buffer, *
 		return nil, nil, nil, nil
 	}
 
-	return ca, caPrivKey, caPEM, caPrivKeyPEM
+	return parsedCA, caPrivKey, caPEM, caPrivKeyPEM
 }
 
 func createx509Certificate(ca *x509.Certificate, caPrivKey *rsa.PrivateKey) (*x509.Certificate, *rsa.PrivateKey, *bytes.Buffer, *bytes.Buffer) {
@@ -101,6 +107,12 @@ func createx509Certificate(ca *x509.Certificate, caPrivKey *rsa.PrivateKey) (*x5
 		caPrivKey,
 	)
 
+	parsedCert, err := x509.ParseCertificate(certBytes)
+	if err != nil {
+		fmt.Printf("failed to parse certificate: %s\n", err)
+		return nil, nil, nil, nil
+	}
+
 	// Create a new buffer to store the PEM encoded certificate
 	certPEM := new(bytes.Buffer)
 	if err := pem.Encode(certPEM, &pem.Block{Type: "CERTIFICATE", Bytes: certBytes}); err != nil {
@@ -114,10 +126,10 @@ func createx509Certificate(ca *x509.Certificate, caPrivKey *rsa.PrivateKey) (*x5
 		return nil, nil, nil, nil
 	}
 
-	return cert, certPrivKey, certPEM, certPrivKeyPEM
+	return parsedCert, certPrivKey, certPEM, certPrivKeyPEM
 }
 
-func createJWKSServer(cert x509.Certificate, certPem bytes.Buffer, keyID string) *httptest.Server {
+func createJWKSServer(certPem bytes.Buffer, keyID string) *httptest.Server {
 
 	key, err := jwk.ParseKey(certPem.Bytes(), jwk.WithPEM(true))
 	if err != nil {
@@ -141,7 +153,7 @@ func createJWKSServer(cert x509.Certificate, certPem bytes.Buffer, keyID string)
 	}
 
 	certChain := &jwCert.Chain{}
-	if err := certChain.Add(cert.Raw); err != nil {
+	if err := certChain.Add(certPem.Bytes()); err != nil {
 		fmt.Printf("failed to add certificate to chain: %s\n", err)
 		return nil
 	}
@@ -240,11 +252,11 @@ func TestValidate(t *testing.T) {
 
 		issuer := fmt.Sprintf("http://%s.com", rand.Text())
 		caCert, caPrivKey, _, _ := createCaCertificate()
-		cert, _, certPem, certPrivKeyPEM := createx509Certificate(caCert, caPrivKey)
+		_, _, certPem, certPrivKeyPEM := createx509Certificate(caCert, caPrivKey)
 
 		keyID := fmt.Sprintf("sso_oidc_key_pair_%s", rand.Text())
 
-		jwksServer := createJWKSServer(*cert, *certPem, keyID)
+		jwksServer := createJWKSServer(*certPem, keyID)
 		defer jwksServer.Close()
 
 		token, _ := jwt.NewBuilder().
@@ -268,7 +280,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		certChain := &jwCert.Chain{}
-		if err := certChain.Add(cert.Raw); err != nil {
+		if err := certChain.Add(certPem.Bytes()); err != nil {
 			t.Fatalf("failed to add certificate to chain: %s\n", err)
 		}
 
@@ -293,11 +305,11 @@ func TestValidate(t *testing.T) {
 	t.Run("invalid token", func(t *testing.T) {
 		issuer := fmt.Sprintf("http://%s.com", rand.Text())
 		caCert, caPrivKey, _, _ := createCaCertificate()
-		cert, _, certPem, _ := createx509Certificate(caCert, caPrivKey)
+		_, _, certPem, _ := createx509Certificate(caCert, caPrivKey)
 
 		keyID := fmt.Sprintf("sso_oidc_key_pair_%s", rand.Text())
 
-		jwksServer := createJWKSServer(*cert, *certPem, keyID)
+		jwksServer := createJWKSServer(*certPem, keyID)
 		defer jwksServer.Close()
 
 		s, err := New(logger, meter, tracer, issuer, jwksServer.URL, "sub")
@@ -309,11 +321,11 @@ func TestValidate(t *testing.T) {
 
 		issuer := fmt.Sprintf("http://%s.com", rand.Text())
 		caCert, caPrivKey, _, _ := createCaCertificate()
-		cert, _, certPem, _ := createx509Certificate(caCert, caPrivKey)
+		_, _, certPem, _ := createx509Certificate(caCert, caPrivKey)
 
 		keyID := fmt.Sprintf("sso_oidc_key_pair_%s", rand.Text())
 
-		jwksServer := createJWKSServer(*cert, *certPem, keyID)
+		jwksServer := createJWKSServer(*certPem, keyID)
 		defer jwksServer.Close()
 
 		token, _ := jwt.NewBuilder().
@@ -341,11 +353,11 @@ func TestValidate(t *testing.T) {
 
 		issuer := fmt.Sprintf("http://%s.com", rand.Text())
 		caCert, caPrivKey, _, _ := createCaCertificate()
-		cert, _, certPem, certPrivKeyPEM := createx509Certificate(caCert, caPrivKey)
+		_, _, certPem, certPrivKeyPEM := createx509Certificate(caCert, caPrivKey)
 
 		keyID := fmt.Sprintf("sso_oidc_key_pair_%s", rand.Text())
 
-		jwksServer := createJWKSServer(*cert, *certPem, keyID)
+		jwksServer := createJWKSServer(*certPem, keyID)
 		defer jwksServer.Close()
 
 		token, _ := jwt.NewBuilder().
@@ -369,7 +381,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		certChain := &jwCert.Chain{}
-		if err := certChain.Add(cert.Raw); err != nil {
+		if err := certChain.Add(certPem.Bytes()); err != nil {
 			t.Fatalf("failed to add certificate to chain: %s\n", err)
 		}
 
@@ -394,11 +406,11 @@ func TestValidate(t *testing.T) {
 	t.Run("invalid jwks url", func(t *testing.T) {
 		issuer := fmt.Sprintf("http://%s.com", rand.Text())
 		caCert, caPrivKey, _, _ := createCaCertificate()
-		cert, _, certPem, _ := createx509Certificate(caCert, caPrivKey)
+		_, _, certPem, _ := createx509Certificate(caCert, caPrivKey)
 
 		keyID := fmt.Sprintf("sso_oidc_key_pair_%s", rand.Text())
 
-		jwksServer := createJWKSServer(*cert, *certPem, keyID)
+		jwksServer := createJWKSServer(*certPem, keyID)
 		defer jwksServer.Close()
 
 		s, err := New(logger, meter, tracer, issuer, fmt.Sprintf("http://%s.com", rand.Text()), "sub")
@@ -410,9 +422,9 @@ func TestValidate(t *testing.T) {
 
 		issuer := fmt.Sprintf("http://%s.com", rand.Text())
 		caCert, caPrivKey, _, _ := createCaCertificate()
-		cert, _, certPem, certPrivKeyPEM := createx509Certificate(caCert, caPrivKey)
+		_, _, certPem, certPrivKeyPEM := createx509Certificate(caCert, caPrivKey)
 
-		jwksServer := createJWKSServer(*cert, *certPem, rand.Text())
+		jwksServer := createJWKSServer(*certPem, rand.Text())
 		defer jwksServer.Close()
 
 		token, _ := jwt.NewBuilder().
@@ -436,7 +448,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		certChain := &jwCert.Chain{}
-		if err := certChain.Add(cert.Raw); err != nil {
+		if err := certChain.Add(certPem.Bytes()); err != nil {
 			t.Fatalf("failed to add certificate to chain: %s\n", err)
 		}
 
@@ -461,11 +473,11 @@ func TestValidate(t *testing.T) {
 	t.Run("invalid issuer", func(t *testing.T) {
 
 		caCert, caPrivKey, _, _ := createCaCertificate()
-		cert, _, certPem, certPrivKeyPEM := createx509Certificate(caCert, caPrivKey)
+		_, _, certPem, certPrivKeyPEM := createx509Certificate(caCert, caPrivKey)
 
 		keyID := fmt.Sprintf("sso_oidc_key_pair_%s", rand.Text())
 
-		jwksServer := createJWKSServer(*cert, *certPem, keyID)
+		jwksServer := createJWKSServer(*certPem, keyID)
 		defer jwksServer.Close()
 
 		token, _ := jwt.NewBuilder().
@@ -489,7 +501,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		certChain := &jwCert.Chain{}
-		if err := certChain.Add(cert.Raw); err != nil {
+		if err := certChain.Add(certPem.Bytes()); err != nil {
 			t.Fatalf("failed to add certificate to chain: %s\n", err)
 		}
 
@@ -515,11 +527,11 @@ func TestValidate(t *testing.T) {
 
 		issuer := fmt.Sprintf("http://%s.com", rand.Text())
 		caCert, caPrivKey, _, _ := createCaCertificate()
-		cert, _, certPem, certPrivKeyPEM := createx509Certificate(caCert, caPrivKey)
+		_, _, certPem, certPrivKeyPEM := createx509Certificate(caCert, caPrivKey)
 
 		keyID := fmt.Sprintf("sso_oidc_key_pair_%s", rand.Text())
 
-		jwksServer := createJWKSServer(*cert, *certPem, keyID)
+		jwksServer := createJWKSServer(*certPem, keyID)
 		defer jwksServer.Close()
 
 		token, _ := jwt.NewBuilder().
@@ -543,7 +555,7 @@ func TestValidate(t *testing.T) {
 		}
 
 		certChain := &jwCert.Chain{}
-		if err := certChain.Add(cert.Raw); err != nil {
+		if err := certChain.Add(certPem.Bytes()); err != nil {
 			t.Fatalf("failed to add certificate to chain: %s\n", err)
 		}
 
