@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/matt-gp/oidc-authorizer/internal/logger"
+	"github.com/matt-gp/core/logger"
+	"github.com/matt-gp/core/otel"
 
 	"github.com/aws/aws-lambda-go/events"
 	"go.opentelemetry.io/otel/attribute"
@@ -79,7 +80,7 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 	eventJson, err := json.Marshal(event)
 	if err != nil {
 
-		logger.Error(ctx, h.logger, "error marshalling event", logger.Err(err))
+		logger.Error(ctx, h.logger, "error marshalling event", attribute.String(otel.ErrorAttrKey, err.Error()))
 
 		attributes := []attribute.KeyValue{
 			attribute.String("status", "error"),
@@ -99,7 +100,7 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 	var authEvent AuthEvent
 	if err := json.Unmarshal(eventJson, &authEvent); err != nil {
 
-		logger.Error(ctx, h.logger, "error unmarshalling event", logger.Err(err))
+		logger.Error(ctx, h.logger, "error unmarshalling event", attribute.String(otel.ErrorAttrKey, err.Error()))
 
 		attributes := []attribute.KeyValue{
 			attribute.String("status", "error"),
@@ -124,7 +125,7 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 
 		if err := json.Unmarshal(eventJson, &v1Event); err != nil {
 
-			logger.Error(ctx, h.logger, "error unmarshalling v1 event", logger.Err(err))
+			logger.Error(ctx, h.logger, "error unmarshalling v1 event", attribute.String(otel.ErrorAttrKey, err.Error()))
 
 			attributes := []attribute.KeyValue{
 				attribute.String("status", "error"),
@@ -163,7 +164,7 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 
 		if err := json.Unmarshal(eventJson, &v2Event); err != nil {
 
-			logger.Error(ctx, h.logger, "error unmarshalling v2 event", logger.Err(err))
+			logger.Error(ctx, h.logger, "error unmarshalling v2 event", attribute.String(otel.ErrorAttrKey, err.Error()))
 
 			attributes := []attribute.KeyValue{
 				attribute.String("status", "error"),
@@ -200,7 +201,7 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 
 	if err := json.Unmarshal(eventJson, &websocketEvent); err != nil {
 
-		logger.Error(ctx, h.logger, "error unmarshalling websocket event", logger.Err(err))
+		logger.Error(ctx, h.logger, "error unmarshalling websocket event", attribute.String(otel.ErrorAttrKey, err.Error()))
 
 		attributes := []attribute.KeyValue{
 			attribute.String("status", "error"),

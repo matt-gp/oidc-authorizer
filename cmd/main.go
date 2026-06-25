@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/matt-gp/core/logger"
+	"github.com/matt-gp/core/otel"
 	"github.com/matt-gp/oidc-authorizer/internal/handler"
-	"github.com/matt-gp/oidc-authorizer/internal/logger"
-	"github.com/matt-gp/oidc-authorizer/internal/otel"
 	"github.com/matt-gp/oidc-authorizer/internal/service"
 
 	"github.com/aws/aws-lambda-go/lambda"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 )
 
@@ -19,7 +20,7 @@ func main() {
 	ctx := context.Background()
 
 	// Initialize OpenTelemetry provider
-	provider, err := otel.NewProvider()
+	provider, err := otel.NewProvider(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -60,9 +61,9 @@ func main() {
 	principalIDClaims := os.Getenv("PRINCIPAL_ID_CLAIMS")
 	if principalIDClaims == "" {
 		principalIDClaims = "sub"
-		logger.Debug(ctx, l, "PRINCIPAL_ID_CLAIMS env var not set using default",
-			logger.String("principal_id_claims", principalIDClaims))
 	}
+
+	logger.Debug(ctx, l, "using principal_id_claims", attribute.String("principal_id_claims", principalIDClaims))
 
 	s, err := service.New(l, m, t, acceptedIssuers, jwksURI, principalIDClaims)
 	if err != nil {
