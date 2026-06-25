@@ -14,26 +14,26 @@ import (
 
 var websocketEventTypeAttr = attribute.String("event.type", "websocket")
 
-func (h *Handler) HandleWebsocketEvent(ctx context.Context, event events.APIGatewayWebsocketProxyRequest) (events.APIGatewayV2CustomAuthorizerIAMPolicyResponse, error) {
+func (handler *Handler) HandleWebsocketEvent(ctx context.Context, event events.APIGatewayWebsocketProxyRequest) (events.APIGatewayV2CustomAuthorizerIAMPolicyResponse, error) {
 
-	ctx, span := h.tracer.Start(ctx, "websocket-event")
+	ctx, span := handler.tracer.Start(ctx, "websocket-event")
 	defer span.End()
 
 	span.SetAttributes(websocketEventTypeAttr)
 
-	logger.Info(ctx, h.logger, "handling event", websocketEventTypeAttr)
-	logger.Debug(ctx, h.logger, "received websocket event", websocketEventTypeAttr)
+	logger.Info(ctx, "handling event", websocketEventTypeAttr)
+	logger.Debug(ctx, "received websocket event", websocketEventTypeAttr)
 
-	token, err := h.getTokenFromWebsocketEvent(event)
+	token, err := handler.getTokenFromWebsocketEvent(event)
 	if err != nil {
-		logger.Error(ctx, h.logger, "error getting token from event", websocketEventTypeAttr, attribute.String(errAttrKey, err.Error()))
+		logger.Error(ctx, "error getting token from event", websocketEventTypeAttr, attribute.String(errAttrKey, err.Error()))
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, err
 	}
 
-	valid := h.s.ValidateToken(ctx, token)
-	logger.Debug(ctx, h.logger, "token validation result", websocketEventTypeAttr, attribute.Bool("valid", valid))
+	valid := handler.service.ValidateToken(ctx, token)
+	logger.Debug(ctx, "token validation result", websocketEventTypeAttr, attribute.Bool("valid", valid))
 
 	policyEffect := "Deny"
 	if valid {
@@ -41,7 +41,7 @@ func (h *Handler) HandleWebsocketEvent(ctx context.Context, event events.APIGate
 	}
 
 	resp := events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{
-		PrincipalID: h.s.GetPrincipalID(),
+		PrincipalID: handler.service.GetPrincipalID(),
 		PolicyDocument: events.APIGatewayCustomAuthorizerPolicy{
 			Version: "2012-10-17",
 			Statement: []events.IAMPolicyStatement{
@@ -53,13 +53,13 @@ func (h *Handler) HandleWebsocketEvent(ctx context.Context, event events.APIGate
 			},
 		},
 		Context: map[string]interface{}{
-			"principalId": h.s.GetPrincipalID(),
+			"principalId": handler.service.GetPrincipalID(),
 			"valid":       valid,
 		},
 	}
 
-	logger.Info(ctx, h.logger, "returning policy response", websocketEventTypeAttr)
-	logger.Debug(ctx, h.logger, "policy response created", websocketEventTypeAttr)
+	logger.Info(ctx, "returning policy response", websocketEventTypeAttr)
+	logger.Debug(ctx, "policy response created", websocketEventTypeAttr)
 
 	span.SetAttributes(attribute.Bool("valid", valid))
 	span.SetStatus(codes.Ok, "websocket event handled successfully")
@@ -67,7 +67,7 @@ func (h *Handler) HandleWebsocketEvent(ctx context.Context, event events.APIGate
 	return resp, nil
 }
 
-func (h *Handler) getTokenFromWebsocketEvent(event events.APIGatewayWebsocketProxyRequest) (string, error) {
+func (handler *Handler) getTokenFromWebsocketEvent(event events.APIGatewayWebsocketProxyRequest) (string, error) {
 
 	auth := event.Headers["Authorization"]
 	if auth == "" {

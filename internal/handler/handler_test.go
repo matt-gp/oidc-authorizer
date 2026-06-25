@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/matt-gp/core/logger"
 	"github.com/matt-gp/core/otel"
 
 	otelapi "go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/log/global"
 )
 
 func TestNew(t *testing.T) {
@@ -22,16 +22,15 @@ func TestNew(t *testing.T) {
 		}
 	}()
 
-	logger := global.GetLoggerProvider().Logger("test")
 	meter := otelapi.GetMeterProvider().Meter("test")
 	tracer := otelapi.GetTracerProvider().Tracer("test")
 
-	s := &MockService{}
-	h, err := New(logger, meter, tracer, s)
+	service := &MockService{}
+	handler, err := New(meter, tracer, service)
 	if err != nil {
 		t.Fatalf("failed to create handler: %v", err)
 	}
-	if h == nil {
+	if handler == nil {
 		t.Errorf("expected handler to be non-nil")
 	}
 }
@@ -42,6 +41,9 @@ func setupOtelForTest(t *testing.T) func() {
 	if err != nil {
 		t.Fatalf("failed to create OpenTelemetry provider: %v", err)
 	}
+
+	// Initialize logger for tests
+	logger.SetProvider(provider.LoggerProvider.Logger("test"))
 
 	return func() {
 		if err := provider.Shutdown(context.Background()); err != nil {

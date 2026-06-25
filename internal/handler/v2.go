@@ -14,26 +14,26 @@ import (
 
 var v2EventTypeAttr = attribute.String("event.type", "v2")
 
-func (h *Handler) HandleV2Event(ctx context.Context, event events.APIGatewayV2CustomAuthorizerV2Request) (events.APIGatewayV2CustomAuthorizerIAMPolicyResponse, error) {
+func (handler *Handler) HandleV2Event(ctx context.Context, event events.APIGatewayV2CustomAuthorizerV2Request) (events.APIGatewayV2CustomAuthorizerIAMPolicyResponse, error) {
 
-	ctx, span := h.tracer.Start(ctx, "v2-event")
+	ctx, span := handler.tracer.Start(ctx, "v2-event")
 	defer span.End()
 
 	span.SetAttributes(v2EventTypeAttr)
 
-	logger.Info(ctx, h.logger, "handling event", v2EventTypeAttr)
-	logger.Debug(ctx, h.logger, "received event", v2EventTypeAttr)
+	logger.Info(ctx, "handling event", v2EventTypeAttr)
+	logger.Debug(ctx, "received event", v2EventTypeAttr)
 
-	token, err := h.getTokenFromV2Event(event)
+	token, err := handler.getTokenFromV2Event(event)
 	if err != nil {
-		logger.Error(ctx, h.logger, "error getting token from event", v2EventTypeAttr, attribute.String(errAttrKey, err.Error()))
+		logger.Error(ctx, "error getting token from event", v2EventTypeAttr, attribute.String(errAttrKey, err.Error()))
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, err
 	}
 
-	valid := h.s.ValidateToken(ctx, token)
-	logger.Debug(ctx, h.logger, "token validation result", v2EventTypeAttr, attribute.Bool("valid", valid))
+	valid := handler.service.ValidateToken(ctx, token)
+	logger.Debug(ctx, "token validation result", v2EventTypeAttr, attribute.Bool("valid", valid))
 
 	policyEffect := "Deny"
 	if valid {
@@ -41,7 +41,7 @@ func (h *Handler) HandleV2Event(ctx context.Context, event events.APIGatewayV2Cu
 	}
 
 	resp := events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{
-		PrincipalID: h.s.GetPrincipalID(),
+		PrincipalID: handler.service.GetPrincipalID(),
 		PolicyDocument: events.APIGatewayCustomAuthorizerPolicy{
 			Version: "2012-10-17",
 			Statement: []events.IAMPolicyStatement{
@@ -53,13 +53,13 @@ func (h *Handler) HandleV2Event(ctx context.Context, event events.APIGatewayV2Cu
 			},
 		},
 		Context: map[string]interface{}{
-			"principalId": h.s.GetPrincipalID(),
+			"principalId": handler.service.GetPrincipalID(),
 			"valid":       valid,
 		},
 	}
 
-	logger.Info(ctx, h.logger, "returning policy response", v2EventTypeAttr)
-	logger.Debug(ctx, h.logger, "policy response created", v2EventTypeAttr)
+	logger.Info(ctx, "returning policy response", v2EventTypeAttr)
+	logger.Debug(ctx, "policy response created", v2EventTypeAttr)
 
 	span.SetAttributes(attribute.Bool("valid", valid))
 	span.SetStatus(codes.Ok, "v2 event handled successfully")
@@ -67,7 +67,7 @@ func (h *Handler) HandleV2Event(ctx context.Context, event events.APIGatewayV2Cu
 	return resp, nil
 }
 
-func (h *Handler) getTokenFromV2Event(event events.APIGatewayV2CustomAuthorizerV2Request) (string, error) {
+func (handler *Handler) getTokenFromV2Event(event events.APIGatewayV2CustomAuthorizerV2Request) (string, error) {
 
 	if len(event.IdentitySource) == 0 {
 		return "", errors.New("no identity source found in event")
