@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/matt-gp/core/logger"
-	"github.com/matt-gp/core/otel"
 
 	"github.com/aws/aws-lambda-go/events"
 	"go.opentelemetry.io/otel/attribute"
@@ -27,7 +26,7 @@ func (h *Handler) HandleWebsocketEvent(ctx context.Context, event events.APIGate
 
 	token, err := h.getTokenFromWebsocketEvent(event)
 	if err != nil {
-		logger.Error(ctx, h.logger, "error getting token from event", websocketEventTypeAttr, attribute.String(otel.ErrorAttrKey, err.Error()))
+		logger.Error(ctx, h.logger, "error getting token from event", websocketEventTypeAttr, attribute.String(errAttrKey, err.Error()))
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, err
