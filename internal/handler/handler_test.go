@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/matt-gp/oidc-authorizer/internal/otel"
+	"github.com/matt-gp/core/otel"
 
 	otelapi "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/log/global"
@@ -12,7 +12,7 @@ import (
 
 func TestNew(t *testing.T) {
 	// Setup OpenTelemetry components for testing
-	provider, err := otel.NewProvider()
+	provider, err := otel.NewProvider(context.Background())
 	if err != nil {
 		t.Fatalf("failed to create OpenTelemetry provider: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestNew(t *testing.T) {
 
 // setupOtelForTest creates OpenTelemetry components for testing
 func setupOtelForTest(t *testing.T) func() {
-	provider, err := otel.NewProvider()
+	provider, err := otel.NewProvider(context.Background())
 	if err != nil {
 		t.Fatalf("failed to create OpenTelemetry provider: %v", err)
 	}

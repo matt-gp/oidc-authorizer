@@ -5,7 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/matt-gp/oidc-authorizer/internal/logger"
+	"github.com/matt-gp/core/logger"
+	"github.com/matt-gp/core/otel"
 
 	"github.com/aws/aws-lambda-go/events"
 	"go.opentelemetry.io/otel/attribute"
@@ -22,14 +23,14 @@ func (h *Handler) HandleV1Event(ctx context.Context, event events.APIGatewayV2Cu
 
 	token, err := h.getTokenFromV1Event(ctx, event)
 	if err != nil {
-		logger.Error(ctx, h.logger, "error getting token from event", logger.Err(err))
+		logger.Error(ctx, h.logger, "error getting token from event", attribute.String(otel.ErrorAttrKey, err.Error()))
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 		return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, err
 	}
 
 	valid := h.s.ValidateToken(ctx, token)
-	logger.Debug(ctx, h.logger, "token validation result", logger.Bool("valid", valid))
+	logger.Debug(ctx, h.logger, "token validation result", attribute.Bool("valid", valid))
 
 	policyEffect := "Deny"
 	if valid {

@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/matt-gp/oidc-authorizer/internal/logger"
+	"github.com/matt-gp/core/logger"
+	"github.com/matt-gp/core/otel"
 
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
@@ -67,12 +68,12 @@ func (s *Service) ValidateToken(ctx context.Context, token string) bool {
 	defer span.End()
 
 	logger.Info(ctx, s.logger, "validating token")
-	logger.Debug(ctx, s.logger, "token", logger.String("value", token))
+	logger.Debug(ctx, s.logger, "token", attribute.String("value", token))
 
 	jwKeys, err := jwk.Fetch(ctx, s.JwksUri)
 	if err != nil {
 
-		logger.Error(ctx, s.logger, "failed to fetch JWKs", logger.Err(err))
+		logger.Error(ctx, s.logger, "failed to fetch JWKs", attribute.String(otel.ErrorAttrKey, err.Error()))
 
 		metricAttributes := []attribute.KeyValue{
 			attribute.String("status", "error"),
@@ -91,7 +92,7 @@ func (s *Service) ValidateToken(ctx context.Context, token string) bool {
 
 	jwToken, err := jwt.Parse([]byte(token), jwt.WithKeySet(jwKeys))
 	if err != nil {
-		logger.Error(ctx, s.logger, "failed to parse JWT", logger.Err(err))
+		logger.Error(ctx, s.logger, "failed to parse JWT", attribute.String(otel.ErrorAttrKey, err.Error()))
 
 		metricAttributes := []attribute.KeyValue{
 			attribute.String("status", "error"),
@@ -110,7 +111,7 @@ func (s *Service) ValidateToken(ctx context.Context, token string) bool {
 
 	if err := jwt.Validate(jwToken, jwt.WithIssuer(s.AcceptedIssuers)); err != nil {
 
-		logger.Error(ctx, s.logger, "failed to verify JWT", logger.Err(err))
+		logger.Error(ctx, s.logger, "failed to verify JWT", attribute.String(otel.ErrorAttrKey, err.Error()))
 
 		metricAttributes := []attribute.KeyValue{
 			attribute.String("status", "error"),
@@ -130,7 +131,7 @@ func (s *Service) ValidateToken(ctx context.Context, token string) bool {
 	var principalID string
 	if err := jwToken.Get(s.PrincipalIDClaims, &principalID); err != nil {
 
-		logger.Error(ctx, s.logger, "failed to get principal ID claim", logger.Err(err))
+		logger.Error(ctx, s.logger, "failed to get principal ID claim", attribute.String(otel.ErrorAttrKey, err.Error()))
 
 		metricAttributes := []attribute.KeyValue{
 			attribute.String("status", "error"),
