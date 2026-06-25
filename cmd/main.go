@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 
@@ -13,13 +12,11 @@ import (
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 )
 
 func main() {
 	ctx := context.Background()
 
-	// Initialize OpenTelemetry provider
 	provider, err := otel.NewProvider(ctx)
 	if err != nil {
 		panic(err)
@@ -34,27 +31,17 @@ func main() {
 	m := provider.MeterProvider.Meter("oidc-authorizer")
 	t := provider.TracerProvider.Tracer("oidc-authorizer")
 
-	// Start tracing
-	ctx, span := t.Start(ctx, "main")
-	defer span.End()
-
 	logger.Info(ctx, l, "starting oidc-authorizer")
 
 	acceptedIssuers := os.Getenv("ACCEPTED_ISSUERS")
 	if acceptedIssuers == "" {
-		err := errors.New("ACCEPTED_ISSUERS env var not set")
-		logger.Error(ctx, l, err.Error())
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		logger.Error(ctx, l, "ACCEPTED_ISSUERS env var not set")
 		os.Exit(1)
 	}
 
 	jwksURI := os.Getenv("JWKS_URI")
 	if jwksURI == "" {
-		err := errors.New("JWKS_URI env var not set")
-		logger.Error(ctx, l, err.Error())
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		logger.Error(ctx, l, "JWKS_URI env var not set")
 		os.Exit(1)
 	}
 
@@ -65,19 +52,10 @@ func main() {
 
 	logger.Debug(ctx, l, "using principal_id_claims", attribute.String("principal_id_claims", principalIDClaims))
 
-	s, err := service.New(l, m, t, acceptedIssuers, jwksURI, principalIDClaims)
-	if err != nil {
-		logger.Error(ctx, l, err.Error())
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		os.Exit(1)
-	}
-
+	s := service.New(l, t, acceptedIssuers, jwksURI, principalIDClaims)
 	h, err := handler.New(l, m, t, s)
 	if err != nil {
 		logger.Error(ctx, l, err.Error())
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		os.Exit(1)
 	}
 

@@ -11,7 +11,6 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -32,7 +31,6 @@ type AuthEvent struct {
 type Handler struct {
 	s                   Service
 	logger              log.Logger
-	meter               metric.Meter
 	tracer              trace.Tracer
 	eventHandlerCounter metric.Int64Counter
 	eventHandlerLatency metric.Float64Histogram
@@ -41,26 +39,25 @@ type Handler struct {
 func New(logger log.Logger, meter metric.Meter, tracer trace.Tracer, s Service) (*Handler, error) {
 
 	eventHandlerCounter, err := meter.Int64Counter(
-		"oidc_authorizer_event_handler_total",
-		metric.WithDescription("Total number of event handler invocations"),
+		"oidc_authorizer.invocations",
+		metric.WithDescription("Number of authorizer invocations"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create event handler counter: %w", err)
+		return nil, fmt.Errorf("failed to create invocations counter: %w", err)
 	}
 
 	eventHandlerLatency, err := meter.Float64Histogram(
-		"oidc_authorizer_event_handler_latency",
-		metric.WithDescription("Latency of event handler invocations"),
+		"oidc_authorizer.request.duration",
+		metric.WithDescription("Duration of authorizer invocations"),
 		metric.WithUnit("s"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create event handler latency histogram: %w", err)
+		return nil, fmt.Errorf("failed to create request duration histogram: %w", err)
 	}
 
 	h := Handler{
 		s:                   s,
 		logger:              logger,
-		meter:               meter,
 		tracer:              tracer,
 		eventHandlerCounter: eventHandlerCounter,
 		eventHandlerLatency: eventHandlerLatency,
@@ -69,165 +66,64 @@ func New(logger log.Logger, meter metric.Meter, tracer trace.Tracer, s Service) 
 }
 
 func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV2CustomAuthorizerIAMPolicyResponse, error) {
-	start := time.Now()
-
-	// Start tracing
-	ctx, span := h.tracer.Start(ctx, "route-event")
-	defer span.End()
-
-	logger.Debug(ctx, h.logger, "routing event")
 
 	eventJson, err := json.Marshal(event)
 	if err != nil {
-
 		logger.Error(ctx, h.logger, "error marshalling event", attribute.String(otel.ErrorAttrKey, err.Error()))
-
-		attributes := []attribute.KeyValue{
-			attribute.String("status", "error"),
-			attribute.String("event.type", "marshalling"),
-		}
-
-		h.eventHandlerCounter.Add(ctx, 1, metric.WithAttributes(attributes...))
-		h.eventHandlerLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attributes...))
-
-		span.SetAttributes(attributes...)
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
-
 		return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, fmt.Errorf("error marshalling event: %w", err)
 	}
 
 	var authEvent AuthEvent
 	if err := json.Unmarshal(eventJson, &authEvent); err != nil {
-
 		logger.Error(ctx, h.logger, "error unmarshalling event", attribute.String(otel.ErrorAttrKey, err.Error()))
-
-		attributes := []attribute.KeyValue{
-			attribute.String("status", "error"),
-			attribute.String("event.type", "unmarshalling"),
-		}
-
-		h.eventHandlerCounter.Add(ctx, 1, metric.WithAttributes(attributes...))
-		h.eventHandlerLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attributes...))
-
-		span.SetAttributes(attributes...)
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
-
 		return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, fmt.Errorf("error unmarshalling event: %w", err)
 	}
 
-	if authEvent.Version == "1.0" {
+	start := time.Now()
+	var (
+		resp          events.APIGatewayV2CustomAuthorizerIAMPolicyResponse
+		handlerErr    error
+		eventTypeAttr attribute.KeyValue
+	)
 
-		logger.Debug(ctx, h.logger, "routing v1 event")
-
+	switch authEvent.Version {
+	case "1.0":
+		eventTypeAttr = v1EventTypeAttr
 		var v1Event events.APIGatewayV2CustomAuthorizerV1Request
-
 		if err := json.Unmarshal(eventJson, &v1Event); err != nil {
-
-			logger.Error(ctx, h.logger, "error unmarshalling v1 event", attribute.String(otel.ErrorAttrKey, err.Error()))
-
-			attributes := []attribute.KeyValue{
-				attribute.String("status", "error"),
-				attribute.String("event.type", "v1"),
-			}
-
-			h.eventHandlerCounter.Add(ctx, 1, metric.WithAttributes(attributes...))
-			h.eventHandlerLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attributes...))
-
-			span.SetAttributes(attributes...)
-			span.SetStatus(codes.Error, err.Error())
-			span.RecordError(err)
-
-			return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, fmt.Errorf("error unmarshalling v1 event: %w", err)
+			logger.Error(ctx, h.logger, "error unmarshalling event", eventTypeAttr, attribute.String(otel.ErrorAttrKey, err.Error()))
+			handlerErr = fmt.Errorf("error unmarshalling event: %w", err)
+		} else {
+			resp, handlerErr = h.HandleV1Event(ctx, v1Event)
 		}
 
-		attributes := []attribute.KeyValue{
-			attribute.String("status", "success"),
-			attribute.String("event.type", "v1"),
-		}
-
-		h.eventHandlerCounter.Add(ctx, 1, metric.WithAttributes(attributes...))
-		h.eventHandlerLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attributes...))
-
-		span.SetAttributes(attributes...)
-		span.SetStatus(codes.Ok, "event v1 routed successfully")
-
-		return h.HandleV1Event(ctx, v1Event)
-	}
-
-	var v2Event events.APIGatewayV2CustomAuthorizerV2Request
-
-	if authEvent.Version == "2.0" {
-
-		logger.Debug(ctx, h.logger, "routing v2 event")
-
+	case "2.0":
+		eventTypeAttr = v2EventTypeAttr
+		var v2Event events.APIGatewayV2CustomAuthorizerV2Request
 		if err := json.Unmarshal(eventJson, &v2Event); err != nil {
-
-			logger.Error(ctx, h.logger, "error unmarshalling v2 event", attribute.String(otel.ErrorAttrKey, err.Error()))
-
-			attributes := []attribute.KeyValue{
-				attribute.String("status", "error"),
-				attribute.String("event.type", "v2"),
-			}
-
-			h.eventHandlerCounter.Add(ctx, 1, metric.WithAttributes(attributes...))
-			h.eventHandlerLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attributes...))
-
-			span.SetAttributes(attributes...)
-			span.SetStatus(codes.Error, err.Error())
-			span.RecordError(err)
-
-			return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, fmt.Errorf("error unmarshalling v2 event: %w", err)
+			logger.Error(ctx, h.logger, "error unmarshalling event", eventTypeAttr, attribute.String(otel.ErrorAttrKey, err.Error()))
+			handlerErr = fmt.Errorf("error unmarshalling event: %w", err)
+		} else {
+			resp, handlerErr = h.HandleV2Event(ctx, v2Event)
 		}
 
-		attributes := []attribute.KeyValue{
-			attribute.String("status", "success"),
-			attribute.String("event.type", "v2"),
+	default:
+		eventTypeAttr = websocketEventTypeAttr
+		var websocketEvent events.APIGatewayWebsocketProxyRequest
+		if err := json.Unmarshal(eventJson, &websocketEvent); err != nil {
+			logger.Error(ctx, h.logger, "error unmarshalling event", eventTypeAttr, attribute.String(otel.ErrorAttrKey, err.Error()))
+			handlerErr = fmt.Errorf("error unmarshalling event: %w", err)
+		} else {
+			resp, handlerErr = h.HandleWebsocketEvent(ctx, websocketEvent)
 		}
-
-		h.eventHandlerCounter.Add(ctx, 1, metric.WithAttributes(attributes...))
-		h.eventHandlerLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attributes...))
-
-		span.SetAttributes(attributes...)
-		span.SetStatus(codes.Ok, "event v2 routed successfully")
-
-		return h.HandleV2Event(ctx, v2Event)
 	}
 
-	logger.Debug(ctx, h.logger, "routing websocket event")
-
-	var websocketEvent events.APIGatewayWebsocketProxyRequest
-
-	if err := json.Unmarshal(eventJson, &websocketEvent); err != nil {
-
-		logger.Error(ctx, h.logger, "error unmarshalling websocket event", attribute.String(otel.ErrorAttrKey, err.Error()))
-
-		attributes := []attribute.KeyValue{
-			attribute.String("status", "error"),
-			attribute.String("event.type", "websocket"),
-		}
-
-		h.eventHandlerCounter.Add(ctx, 1, metric.WithAttributes(attributes...))
-		h.eventHandlerLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attributes...))
-
-		span.SetAttributes(attributes...)
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
-
-		return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, fmt.Errorf("error unmarshalling websocket event: %w", err)
+	statusAttr := attribute.String("status", "success")
+	if handlerErr != nil {
+		statusAttr = attribute.String("status", "error")
 	}
+	h.eventHandlerCounter.Add(ctx, 1, metric.WithAttributes(statusAttr, eventTypeAttr))
+	h.eventHandlerLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(statusAttr, eventTypeAttr))
 
-	attributes := []attribute.KeyValue{
-		attribute.String("status", "success"),
-		attribute.String("event.type", "websocket"),
-	}
-
-	h.eventHandlerCounter.Add(ctx, 1, metric.WithAttributes(attributes...))
-	h.eventHandlerLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attributes...))
-
-	span.SetAttributes(attributes...)
-	span.SetStatus(codes.Ok, "event websocket routed successfully")
-
-	return h.HandleWebsocketEvent(ctx, websocketEvent)
+	return resp, handlerErr
 }

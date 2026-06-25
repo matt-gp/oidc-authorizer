@@ -141,14 +141,14 @@ func TestGetTokenFromWebsocketEvent(t *testing.T) {
 				"Authorization": "Bearer valid-token",
 			},
 		}
-		token, err := h.getTokenFromWebsocketEvent(context.Background(), event)
+		token, err := h.getTokenFromWebsocketEvent(event)
 		assert.NoError(t, err)
 		assert.Equal(t, "valid-token", token)
 	})
 
 	t.Run("no token", func(t *testing.T) {
 		event := events.APIGatewayWebsocketProxyRequest{}
-		token, err := h.getTokenFromWebsocketEvent(context.Background(), event)
+		token, err := h.getTokenFromWebsocketEvent(event)
 		assert.Error(t, err)
 		assert.Equal(t, "", token)
 	})

@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	"github.com/matt-gp/core/logger"
 	"github.com/matt-gp/core/otel"
@@ -13,152 +11,77 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/log"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
 
+var (
+	eventStatusAttrSuccess = attribute.String("status", "success")
+	eventStatusAttrError   = attribute.String("status", "error")
+)
+
 type Service struct {
-	AcceptedIssuers       string
-	JwksUri               string
-	PrincipalIDClaims     string
-	PrincipalID           string
-	logger                log.Logger
-	meter                 metric.Meter
-	tracer                trace.Tracer
-	tokenValidatorCounter metric.Int64Counter
-	tokenValidatorLatency metric.Float64Histogram
+	AcceptedIssuers   string
+	JwksUri           string
+	PrincipalIDClaims string
+	PrincipalID       string
+	logger            log.Logger
+	tracer            trace.Tracer
 }
 
-func New(logger log.Logger, meter metric.Meter, tracer trace.Tracer, acceptedIssuers string, jwksuri string, principalIdClaims string) (*Service, error) {
-
-	tokenValidatorCounter, err := meter.Int64Counter(
-		"oidc_authorizer_token_validator_total",
-		metric.WithDescription("Total number of token validation invocations"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create token validator counter: %w", err)
-	}
-
-	tokenValidatorLatency, err := meter.Float64Histogram(
-		"oidc_authorizer_token_validator_latency",
-		metric.WithDescription("Latency of token validation invocations"),
-		metric.WithUnit("s"),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create token validator latency histogram: %w", err)
-	}
-
+func New(logger log.Logger, tracer trace.Tracer, acceptedIssuers string, jwksuri string, principalIdClaims string) *Service {
 	return &Service{
-		AcceptedIssuers:       acceptedIssuers,
-		JwksUri:               jwksuri,
-		PrincipalIDClaims:     principalIdClaims,
-		logger:                logger,
-		meter:                 meter,
-		tracer:                tracer,
-		tokenValidatorCounter: tokenValidatorCounter,
-		tokenValidatorLatency: tokenValidatorLatency,
-	}, nil
+		AcceptedIssuers:   acceptedIssuers,
+		JwksUri:           jwksuri,
+		PrincipalIDClaims: principalIdClaims,
+		logger:            logger,
+		tracer:            tracer,
+	}
 }
 
 func (s *Service) ValidateToken(ctx context.Context, token string) bool {
-
-	start := time.Now()
 
 	ctx, span := s.tracer.Start(ctx, "validate-token")
 	defer span.End()
 
 	logger.Info(ctx, s.logger, "validating token")
-	logger.Debug(ctx, s.logger, "token", attribute.String("value", token))
 
 	jwKeys, err := jwk.Fetch(ctx, s.JwksUri)
 	if err != nil {
-
 		logger.Error(ctx, s.logger, "failed to fetch JWKs", attribute.String(otel.ErrorAttrKey, err.Error()))
-
-		metricAttributes := []attribute.KeyValue{
-			attribute.String("status", "error"),
-			attribute.String("event.type", "jwk"),
-		}
-
-		s.tokenValidatorCounter.Add(ctx, 1, metric.WithAttributes(metricAttributes...))
-		s.tokenValidatorLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(metricAttributes...))
-
 		span.RecordError(err)
-		span.SetAttributes(metricAttributes...)
+		span.SetAttributes(eventStatusAttrError)
 		span.SetStatus(codes.Error, err.Error())
-
 		return false
 	}
 
 	jwToken, err := jwt.Parse([]byte(token), jwt.WithKeySet(jwKeys))
 	if err != nil {
 		logger.Error(ctx, s.logger, "failed to parse JWT", attribute.String(otel.ErrorAttrKey, err.Error()))
-
-		metricAttributes := []attribute.KeyValue{
-			attribute.String("status", "error"),
-			attribute.String("event.type", "parse"),
-		}
-
-		s.tokenValidatorCounter.Add(ctx, 1, metric.WithAttributes(metricAttributes...))
-		s.tokenValidatorLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(metricAttributes...))
-
 		span.RecordError(err)
-		span.SetAttributes(metricAttributes...)
+		span.SetAttributes(eventStatusAttrError)
 		span.SetStatus(codes.Error, err.Error())
-
 		return false
 	}
 
 	if err := jwt.Validate(jwToken, jwt.WithIssuer(s.AcceptedIssuers)); err != nil {
-
 		logger.Error(ctx, s.logger, "failed to verify JWT", attribute.String(otel.ErrorAttrKey, err.Error()))
-
-		metricAttributes := []attribute.KeyValue{
-			attribute.String("status", "error"),
-			attribute.String("event.type", "validate"),
-		}
-
-		s.tokenValidatorCounter.Add(ctx, 1, metric.WithAttributes(metricAttributes...))
-		s.tokenValidatorLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(metricAttributes...))
-
 		span.RecordError(err)
-		span.SetAttributes(metricAttributes...)
+		span.SetAttributes(eventStatusAttrError)
 		span.SetStatus(codes.Error, err.Error())
-
 		return false
 	}
 
 	var principalID string
 	if err := jwToken.Get(s.PrincipalIDClaims, &principalID); err != nil {
-
 		logger.Error(ctx, s.logger, "failed to get principal ID claim", attribute.String(otel.ErrorAttrKey, err.Error()))
-
-		metricAttributes := []attribute.KeyValue{
-			attribute.String("status", "error"),
-			attribute.String("event.type", "claim"),
-		}
-
-		s.tokenValidatorCounter.Add(ctx, 1, metric.WithAttributes(metricAttributes...))
-		s.tokenValidatorLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(metricAttributes...))
-
 		span.RecordError(err)
-		span.SetAttributes(metricAttributes...)
+		span.SetAttributes(eventStatusAttrError)
 		span.SetStatus(codes.Error, err.Error())
-
 		return false
 	}
 
 	s.PrincipalID = principalID
-
-	metricAttributes := []attribute.KeyValue{
-		attribute.String("status", "success"),
-		attribute.String("event.type", "validate"),
-	}
-
-	s.tokenValidatorCounter.Add(ctx, 1, metric.WithAttributes(metricAttributes...))
-	s.tokenValidatorLatency.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(metricAttributes...))
-
-	span.SetAttributes(metricAttributes...)
+	span.SetAttributes(eventStatusAttrSuccess)
 	span.SetStatus(codes.Ok, "token validated successfully")
 
 	return true
