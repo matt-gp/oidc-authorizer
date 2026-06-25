@@ -26,6 +26,7 @@ type Service struct {
 	tracer            trace.Tracer
 }
 
+// New creates a new Service with the provided tracer, accepted issuers, JWKS URI, and principal ID claims.
 func New(tracer trace.Tracer, acceptedIssuers string, jwksuri string, principalIdClaims string) *Service {
 	return &Service{
 		AcceptedIssuers:   acceptedIssuers,
@@ -35,6 +36,8 @@ func New(tracer trace.Tracer, acceptedIssuers string, jwksuri string, principalI
 	}
 }
 
+// ValidateToken validates the provided token against the accepted issuers and JWKS URI.
+// It returns true if the token is valid, false otherwise.
 func (s *Service) ValidateToken(ctx context.Context, token string) bool {
 
 	ctx, span := s.tracer.Start(ctx, "validate-token")
@@ -84,6 +87,7 @@ func (s *Service) ValidateToken(ctx context.Context, token string) bool {
 	return true
 }
 
+// GetPrincipalID returns the principal ID extracted from the validated token.
 func (s *Service) GetPrincipalID() string {
 	return s.PrincipalID
 }
