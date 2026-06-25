@@ -133,7 +133,7 @@ func TestGetTokenFromV1Event(t *testing.T) {
 	t.Run("no token", func(t *testing.T) {
 
 		event := events.APIGatewayV2CustomAuthorizerV1Request{}
-		token, err := h.getTokenFromV1Event(context.Background(), event)
+		token, err := h.getTokenFromV1Event(event)
 		assert.Empty(t, token)
 		assert.Error(t, err)
 		assert.Equal(t, errors.New("no identity source found in event"), err)
@@ -145,7 +145,7 @@ func TestGetTokenFromV1Event(t *testing.T) {
 		event := events.APIGatewayV2CustomAuthorizerV1Request{
 			IdentitySource: randomToken,
 		}
-		token, err := h.getTokenFromV1Event(context.Background(), event)
+		token, err := h.getTokenFromV1Event(event)
 		assert.NoError(t, err)
 		assert.Equal(t, randomToken, token)
 	})
@@ -156,7 +156,7 @@ func TestGetTokenFromV1Event(t *testing.T) {
 		event := events.APIGatewayV2CustomAuthorizerV1Request{
 			IdentitySource: "Bearer " + randomToken,
 		}
-		token, err := h.getTokenFromV1Event(context.Background(), event)
+		token, err := h.getTokenFromV1Event(event)
 		assert.NoError(t, err)
 		assert.Equal(t, randomToken, token)
 	})

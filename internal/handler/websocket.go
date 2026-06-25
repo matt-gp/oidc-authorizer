@@ -13,24 +13,28 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
+var websocketEventTypeAttr = attribute.String("event.type", "websocket")
+
 func (h *Handler) HandleWebsocketEvent(ctx context.Context, event events.APIGatewayWebsocketProxyRequest) (events.APIGatewayV2CustomAuthorizerIAMPolicyResponse, error) {
 
-	ctx, span := h.tracer.Start(ctx, "handle-event")
+	ctx, span := h.tracer.Start(ctx, "websocket-event")
 	defer span.End()
 
-	logger.Info(ctx, h.logger, "handling event")
-	logger.Debug(ctx, h.logger, "received websocket event")
+	span.SetAttributes(websocketEventTypeAttr)
 
-	token, err := h.getTokenFromWebsocketEvent(ctx, event)
+	logger.Info(ctx, h.logger, "handling event", websocketEventTypeAttr)
+	logger.Debug(ctx, h.logger, "received websocket event", websocketEventTypeAttr)
+
+	token, err := h.getTokenFromWebsocketEvent(event)
 	if err != nil {
-		logger.Error(ctx, h.logger, "error getting token from event", attribute.String(otel.ErrorAttrKey, err.Error()))
+		logger.Error(ctx, h.logger, "error getting token from event", websocketEventTypeAttr, attribute.String(otel.ErrorAttrKey, err.Error()))
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, err
 	}
 
 	valid := h.s.ValidateToken(ctx, token)
-	logger.Debug(ctx, h.logger, "token validation result", attribute.Bool("valid", valid))
+	logger.Debug(ctx, h.logger, "token validation result", websocketEventTypeAttr, attribute.Bool("valid", valid))
 
 	policyEffect := "Deny"
 	if valid {
@@ -55,8 +59,8 @@ func (h *Handler) HandleWebsocketEvent(ctx context.Context, event events.APIGate
 		},
 	}
 
-	logger.Info(ctx, h.logger, "returning policy response")
-	logger.Debug(ctx, h.logger, "policy response created")
+	logger.Info(ctx, h.logger, "returning policy response", websocketEventTypeAttr)
+	logger.Debug(ctx, h.logger, "policy response created", websocketEventTypeAttr)
 
 	span.SetAttributes(attribute.Bool("valid", valid))
 	span.SetStatus(codes.Ok, "websocket event handled successfully")
@@ -64,21 +68,16 @@ func (h *Handler) HandleWebsocketEvent(ctx context.Context, event events.APIGate
 	return resp, nil
 }
 
-func (h *Handler) getTokenFromWebsocketEvent(ctx context.Context, event events.APIGatewayWebsocketProxyRequest) (string, error) {
+func (h *Handler) getTokenFromWebsocketEvent(event events.APIGatewayWebsocketProxyRequest) (string, error) {
 
-	_, span := h.tracer.Start(ctx, "get-token")
-	defer span.End()
-
-	span.SetAttributes(attribute.String("event.type", "websocket"))
-
-	if event.Headers["Authorization"] != "" {
-		span.SetStatus(codes.Ok, "token found in event")
-		return strings.Split(event.Headers["Authorization"], " ")[1], nil
+	auth := event.Headers["Authorization"]
+	if auth == "" {
+		return "", errors.New("no token found in event")
 	}
 
-	err := errors.New("no token found in event")
-	span.RecordError(err)
-	span.SetStatus(codes.Error, err.Error())
+	if strings.Count(auth, " ") == 0 {
+		return auth, nil
+	}
 
-	return "", err
+	return strings.Split(auth, " ")[1], nil
 }
