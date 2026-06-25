@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matt-gp/core/logger"
 	"github.com/matt-gp/core/otel"
 
 	jwCert "github.com/lestrrat-go/jwx/v3/cert"
@@ -28,7 +29,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otelapi "go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/log/global"
 )
 
 // setupOtelForTest creates OpenTelemetry components for testing
@@ -37,6 +37,9 @@ func setupOtelForTest(t *testing.T) func() {
 	if err != nil {
 		t.Fatalf("failed to create OpenTelemetry provider: %v", err)
 	}
+
+	// Initialize logger for tests
+	logger.SetProvider(provider.LoggerProvider.Logger("test"))
 
 	return func() {
 		provider.Shutdown(context.Background())
@@ -192,7 +195,6 @@ func TestNew(t *testing.T) {
 	cleanup := setupOtelForTest(t)
 	defer cleanup()
 
-	logger := global.GetLoggerProvider().Logger("test")
 	tracer := otelapi.GetTracerProvider().Tracer("test")
 
 	type test struct {
@@ -216,7 +218,7 @@ func TestNew(t *testing.T) {
 
 	for _, tc := range tests {
 
-		s := New(logger, tracer, tc.acceptedIssuers, tc.jwksUri, tc.principalIdClaims)
+		s := New(tracer, tc.acceptedIssuers, tc.jwksUri, tc.principalIdClaims)
 		require.NotNil(t, s)
 		assert.Equal(t, tc.acceptedIssuers, s.AcceptedIssuers)
 		assert.Equal(t, tc.jwksUri, s.JwksUri)
@@ -228,10 +230,9 @@ func TestGetPrincipalID(t *testing.T) {
 	cleanup := setupOtelForTest(t)
 	defer cleanup()
 
-	logger := global.GetLoggerProvider().Logger("test")
 	tracer := otelapi.GetTracerProvider().Tracer("test")
 
-	s := New(logger, tracer, "https://example.com", "https://example.com/jwks", "sub")
+	s := New(tracer, "https://example.com", "https://example.com/jwks", "sub")
 	s.PrincipalID = rand.Text()
 	assert.Equal(t, s.PrincipalID, s.GetPrincipalID())
 }
@@ -240,7 +241,6 @@ func TestValidate(t *testing.T) {
 	cleanup := setupOtelForTest(t)
 	defer cleanup()
 
-	logger := global.GetLoggerProvider().Logger("test")
 	tracer := otelapi.GetTracerProvider().Tracer("test")
 
 	t.Run("valid token", func(t *testing.T) {
@@ -293,7 +293,7 @@ func TestValidate(t *testing.T) {
 			t.Fatalf("failed to sign token: %s", err)
 		}
 
-		s := New(logger, tracer, issuer, jwksServer.URL, "sub")
+		s := New(tracer, issuer, jwksServer.URL, "sub")
 		assert.True(t, s.ValidateToken(context.Background(), string(tokenString)))
 	})
 
@@ -307,7 +307,7 @@ func TestValidate(t *testing.T) {
 		jwksServer := createJWKSServer(*certPem, keyID)
 		defer jwksServer.Close()
 
-		s := New(logger, tracer, issuer, jwksServer.URL, "sub")
+		s := New(tracer, issuer, jwksServer.URL, "sub")
 		assert.False(t, s.ValidateToken(context.Background(), rand.Text()))
 	})
 
@@ -339,7 +339,7 @@ func TestValidate(t *testing.T) {
 			t.Fatalf("failed to sign token: %s", err)
 		}
 
-		s := New(logger, tracer, issuer, jwksServer.URL, "sub")
+		s := New(tracer, issuer, jwksServer.URL, "sub")
 		assert.False(t, s.ValidateToken(context.Background(), string(tokenString)))
 	})
 
@@ -393,7 +393,7 @@ func TestValidate(t *testing.T) {
 			t.Fatalf("failed to sign token: %s", err)
 		}
 
-		s := New(logger, tracer, issuer, jwksServer.URL, "sub")
+		s := New(tracer, issuer, jwksServer.URL, "sub")
 		assert.False(t, s.ValidateToken(context.Background(), string(tokenString)))
 	})
 
@@ -407,7 +407,7 @@ func TestValidate(t *testing.T) {
 		jwksServer := createJWKSServer(*certPem, keyID)
 		defer jwksServer.Close()
 
-		s := New(logger, tracer, issuer, fmt.Sprintf("http://%s.com", rand.Text()), "sub")
+		s := New(tracer, issuer, fmt.Sprintf("http://%s.com", rand.Text()), "sub")
 		assert.False(t, s.ValidateToken(context.Background(), rand.Text()))
 	})
 
@@ -459,7 +459,7 @@ func TestValidate(t *testing.T) {
 			t.Fatalf("failed to sign token: %s", err)
 		}
 
-		s := New(logger, tracer, issuer, jwksServer.URL, "sub")
+		s := New(tracer, issuer, jwksServer.URL, "sub")
 		assert.False(t, s.ValidateToken(context.Background(), string(tokenString)))
 	})
 
@@ -512,7 +512,7 @@ func TestValidate(t *testing.T) {
 			t.Fatalf("failed to sign token: %s", err)
 		}
 
-		s := New(logger, tracer, fmt.Sprintf("http://%s.com", rand.Text()), jwksServer.URL, "sub")
+		s := New(tracer, fmt.Sprintf("http://%s.com", rand.Text()), jwksServer.URL, "sub")
 		assert.False(t, s.ValidateToken(context.Background(), string(tokenString)))
 	})
 
@@ -566,7 +566,7 @@ func TestValidate(t *testing.T) {
 			t.Fatalf("failed to sign token: %s", err)
 		}
 
-		s := New(logger, tracer, issuer, jwksServer.URL, "id")
+		s := New(tracer, issuer, jwksServer.URL, "id")
 		assert.False(t, s.ValidateToken(context.Background(), string(tokenString)))
 	})
 }

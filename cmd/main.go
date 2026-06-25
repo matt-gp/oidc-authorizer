@@ -27,21 +27,25 @@ func main() {
 		}
 	}()
 
-	l := provider.LoggerProvider.Logger("oidc-authorizer")
-	m := provider.MeterProvider.Meter("oidc-authorizer")
-	t := provider.TracerProvider.Tracer("oidc-authorizer")
+	loggingProvider := provider.LoggerProvider.Logger("oidc-authorizer")
+	meterProvider := provider.MeterProvider.Meter("oidc-authorizer")
+	tracerProvider := provider.TracerProvider.Tracer("oidc-authorizer")
 
-	logger.Info(ctx, l, "starting oidc-authorizer")
+	// Initialize logger
+	logger.SetProvider(loggingProvider)
+
+	// Start the application
+	logger.Info(ctx, "starting oidc-authorizer")
 
 	acceptedIssuers := os.Getenv("ACCEPTED_ISSUERS")
 	if acceptedIssuers == "" {
-		logger.Error(ctx, l, "ACCEPTED_ISSUERS env var not set")
+		logger.Error(ctx, "ACCEPTED_ISSUERS env var not set")
 		os.Exit(1)
 	}
 
 	jwksURI := os.Getenv("JWKS_URI")
 	if jwksURI == "" {
-		logger.Error(ctx, l, "JWKS_URI env var not set")
+		logger.Error(ctx, "JWKS_URI env var not set")
 		os.Exit(1)
 	}
 
@@ -50,16 +54,16 @@ func main() {
 		principalIDClaims = "sub"
 	}
 
-	logger.Debug(ctx, l, "using principal_id_claims", attribute.String("principal_id_claims", principalIDClaims))
+	logger.Debug(ctx, "using principal_id_claims", attribute.String("principal_id_claims", principalIDClaims))
 
-	s := service.New(l, t, acceptedIssuers, jwksURI, principalIDClaims)
-	h, err := handler.New(l, m, t, s)
+	s := service.New(tracerProvider, acceptedIssuers, jwksURI, principalIDClaims)
+	h, err := handler.New(meterProvider, tracerProvider, s)
 	if err != nil {
-		logger.Error(ctx, l, err.Error())
+		logger.Error(ctx, err.Error())
 		os.Exit(1)
 	}
 
 	lambda.Start(h.RouteEvent)
 
-	logger.Info(ctx, l, "stopping oidc-authorizer")
+	logger.Info(ctx, "stopping oidc-authorizer")
 }
