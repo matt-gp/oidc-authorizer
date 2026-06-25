@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/matt-gp/core/logger"
-	"github.com/matt-gp/core/otel"
 
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
@@ -17,6 +16,7 @@ import (
 var (
 	eventStatusAttrSuccess = attribute.String("status", "success")
 	eventStatusAttrError   = attribute.String("status", "error")
+	errAttrKey             = "error"
 )
 
 type Service struct {
@@ -47,7 +47,7 @@ func (s *Service) ValidateToken(ctx context.Context, token string) bool {
 
 	jwKeys, err := jwk.Fetch(ctx, s.JwksUri)
 	if err != nil {
-		logger.Error(ctx, s.logger, "failed to fetch JWKs", attribute.String(otel.ErrorAttrKey, err.Error()))
+		logger.Error(ctx, s.logger, "failed to fetch JWKs", attribute.String(errAttrKey, err.Error()))
 		span.RecordError(err)
 		span.SetAttributes(eventStatusAttrError)
 		span.SetStatus(codes.Error, err.Error())
@@ -56,7 +56,7 @@ func (s *Service) ValidateToken(ctx context.Context, token string) bool {
 
 	jwToken, err := jwt.Parse([]byte(token), jwt.WithKeySet(jwKeys))
 	if err != nil {
-		logger.Error(ctx, s.logger, "failed to parse JWT", attribute.String(otel.ErrorAttrKey, err.Error()))
+		logger.Error(ctx, s.logger, "failed to parse JWT", attribute.String(errAttrKey, err.Error()))
 		span.RecordError(err)
 		span.SetAttributes(eventStatusAttrError)
 		span.SetStatus(codes.Error, err.Error())
@@ -64,7 +64,7 @@ func (s *Service) ValidateToken(ctx context.Context, token string) bool {
 	}
 
 	if err := jwt.Validate(jwToken, jwt.WithIssuer(s.AcceptedIssuers)); err != nil {
-		logger.Error(ctx, s.logger, "failed to verify JWT", attribute.String(otel.ErrorAttrKey, err.Error()))
+		logger.Error(ctx, s.logger, "failed to verify JWT", attribute.String(errAttrKey, err.Error()))
 		span.RecordError(err)
 		span.SetAttributes(eventStatusAttrError)
 		span.SetStatus(codes.Error, err.Error())
@@ -73,7 +73,7 @@ func (s *Service) ValidateToken(ctx context.Context, token string) bool {
 
 	var principalID string
 	if err := jwToken.Get(s.PrincipalIDClaims, &principalID); err != nil {
-		logger.Error(ctx, s.logger, "failed to get principal ID claim", attribute.String(otel.ErrorAttrKey, err.Error()))
+		logger.Error(ctx, s.logger, "failed to get principal ID claim", attribute.String(errAttrKey, err.Error()))
 		span.RecordError(err)
 		span.SetAttributes(eventStatusAttrError)
 		span.SetStatus(codes.Error, err.Error())

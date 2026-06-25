@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/matt-gp/core/logger"
-	"github.com/matt-gp/core/otel"
 
 	"github.com/aws/aws-lambda-go/events"
 	"go.opentelemetry.io/otel/attribute"
@@ -15,6 +14,8 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
+
+var errAttrKey = "error"
 
 // Service defines the interface for the authentication service.
 //
@@ -69,13 +70,13 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 
 	eventJson, err := json.Marshal(event)
 	if err != nil {
-		logger.Error(ctx, h.logger, "error marshalling event", attribute.String(otel.ErrorAttrKey, err.Error()))
+		logger.Error(ctx, h.logger, "error marshalling event", attribute.String(errAttrKey, err.Error()))
 		return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, fmt.Errorf("error marshalling event: %w", err)
 	}
 
 	var authEvent AuthEvent
 	if err := json.Unmarshal(eventJson, &authEvent); err != nil {
-		logger.Error(ctx, h.logger, "error unmarshalling event", attribute.String(otel.ErrorAttrKey, err.Error()))
+		logger.Error(ctx, h.logger, "error unmarshalling event", attribute.String(errAttrKey, err.Error()))
 		return events.APIGatewayV2CustomAuthorizerIAMPolicyResponse{}, fmt.Errorf("error unmarshalling event: %w", err)
 	}
 
@@ -91,7 +92,7 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 		eventTypeAttr = v1EventTypeAttr
 		var v1Event events.APIGatewayV2CustomAuthorizerV1Request
 		if err := json.Unmarshal(eventJson, &v1Event); err != nil {
-			logger.Error(ctx, h.logger, "error unmarshalling event", eventTypeAttr, attribute.String(otel.ErrorAttrKey, err.Error()))
+			logger.Error(ctx, h.logger, "error unmarshalling event", eventTypeAttr, attribute.String(errAttrKey, err.Error()))
 			handlerErr = fmt.Errorf("error unmarshalling event: %w", err)
 		} else {
 			resp, handlerErr = h.HandleV1Event(ctx, v1Event)
@@ -101,7 +102,7 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 		eventTypeAttr = v2EventTypeAttr
 		var v2Event events.APIGatewayV2CustomAuthorizerV2Request
 		if err := json.Unmarshal(eventJson, &v2Event); err != nil {
-			logger.Error(ctx, h.logger, "error unmarshalling event", eventTypeAttr, attribute.String(otel.ErrorAttrKey, err.Error()))
+			logger.Error(ctx, h.logger, "error unmarshalling event", eventTypeAttr, attribute.String(errAttrKey, err.Error()))
 			handlerErr = fmt.Errorf("error unmarshalling event: %w", err)
 		} else {
 			resp, handlerErr = h.HandleV2Event(ctx, v2Event)
@@ -111,7 +112,7 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 		eventTypeAttr = websocketEventTypeAttr
 		var websocketEvent events.APIGatewayWebsocketProxyRequest
 		if err := json.Unmarshal(eventJson, &websocketEvent); err != nil {
-			logger.Error(ctx, h.logger, "error unmarshalling event", eventTypeAttr, attribute.String(otel.ErrorAttrKey, err.Error()))
+			logger.Error(ctx, h.logger, "error unmarshalling event", eventTypeAttr, attribute.String(errAttrKey, err.Error()))
 			handlerErr = fmt.Errorf("error unmarshalling event: %w", err)
 		} else {
 			resp, handlerErr = h.HandleWebsocketEvent(ctx, websocketEvent)
