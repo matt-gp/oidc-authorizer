@@ -19,12 +19,14 @@ Tests output OTel span/metric JSON to stdout — this is normal, look for `ok`/`
 cmd/main.go
   └── wires OTel provider, service, handler → lambda.Start (blocks)
 
-internal/handler/handler.go   RouteEvent  — sniffs version field, routes to typed handler
-internal/handler/v1.go        HandleV1Event     (API Gateway v1.0)
-internal/handler/v2.go        HandleV2Event     (API Gateway v2.0)
-internal/handler/websocket.go HandleWebsocketEvent
-internal/service/service.go   ValidateToken — fetches JWKS, parses + validates JWT, extracts principal
+internal/handler/handler.go   RouteEvent      — sniffs version field, routes to handleEvent
+                               handleEvent     — extracts token, validates, builds IAM policy response
+                               getTokenFromEvent — token extraction for all event types (v1, v2, websocket)
+
+internal/service/service.go   ValidateToken   — fetches JWKS, parses + validates JWT, extracts principal
 ```
+
+**Unified Token Extraction**: The `getTokenFromEvent` method uses type assertions to handle all three API Gateway event types (v1, v2, websocket) in a single function, eliminating the need for separate handlers or generics.
 
 OTel provider, logger helpers, and error attribute key come from `github.com/matt-gp/core` — not from local packages.
 
@@ -38,11 +40,11 @@ Both carry `status` (`success`|`error`) and `event.type` (`v1`|`v2`|`websocket`)
 
 **Spans** — only on meaningful operations:
 - `validate-token` in service
-- `v1-event`, `v2-event`, `websocket-event` in the individual handlers
+- `v1`, `v2`, `websocket` in the generic processor (named after event type, not the old handler method names)
 
 Don't add spans to every function. Routing and unmarshalling are not worth their own spans.
 
-**Attributes** — `event.type` carries the API Gateway version (`v1`, `v2`, `websocket`), not internal operation steps. Use dot-notation keys (`event.type`, `status`) following OTel semantic conventions.
+**Attributes** — `event.type`handler.handleEvent (span name matches event typeion steps. Use dot-notation keys (`event.type`, `status`) following OTel semantic conventions.
 
 ## Security constraints
 
