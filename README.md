@@ -39,7 +39,7 @@ git clone https://github.com/matt-gp/oidc-authorizer.git
 cd oidc-authorizer
 
 # Build the binary
-go build -o oidc-authorizer cmd/app/app.go
+go build -o oidc-authorizer cmd/main.go
 
 # Run
 ./oidc-authorizer
@@ -234,33 +234,32 @@ The OIDC Authorizer includes comprehensive OpenTelemetry integration for full ob
 
 ### Traces
 - **Request tracing**: Complete request lifecycle with span hierarchy
-- **JWT validation spans**: Detailed timing for token validation steps
+- **Token validation spans**: Detailed timing for token validation (span name: `validate-token`)
+- **Event handling spans**: Processing for each event type (span names: `v1`, `v2`, `websocket`)
 - **Error attribution**: Failed requests with error details and stack traces
 - **Distributed tracing**: Correlation with upstream and downstream services
 
 ### Metrics
-- **Request counters**: Total requests, success/failure rates
-- **Response time histograms**: P50, P95, P99 latency measurements
-- **Error rate metrics**: Authentication failure rates by reason
-- **Token validation timing**: JWT processing performance metrics
+
+All metrics follow OpenTelemetry naming conventions with dot-notation keys (e.g., `event.type`, `status`) and include labels for detailed observability.
 
 #### Available Metrics
 
-The following metrics are exported with the `oidc_authorizer_` prefix following OpenTelemetry naming conventions:
+The following metrics are exported:
 
-**Token Validation Metrics:**
-- `oidc_authorizer_token_validator_total` - Counter of token validation requests
-  - Labels: `status` (success|error), `event.type` (jwk|parse|validate|claim)
-- `oidc_authorizer_token_validator_latency` - Histogram of token validation duration in seconds
-  - Labels: `status` (success|error), `event.type` (jwk|parse|validate|claim)
+- **`oidc_authorizer.invocations`** - Counter of authorizer invocations
+  - Type: `Int64Counter`
+  - Labels: `status` (`success`|`error`), `event.type` (`v1`|`v2`|`websocket`)
+  
+- **`oidc_authorizer.request.duration`** - Histogram of request duration
+  - Type: `Float64Histogram`
+  - Unit: `s` (seconds)
+  - Labels: `status` (`success`|`error`), `event.type` (`v1`|`v2`|`websocket`)
 
-**Event Handler Metrics:**
-- `oidc_authorizer_event_handler_total` - Counter of event handler invocations
-  - Labels: `status` (success|error), `event.type` (marshalling|unmarshalling|v1|v2|websocket)
-- `oidc_authorizer_event_handler_latency` - Histogram of event handler duration in seconds
-  - Labels: `status` (success|error), `event.type` (marshalling|unmarshalling|v1|v2|websocket)
-
-> **Note**: All metric labels use dots (`.`) instead of underscores (`_`) following OpenTelemetry semantic conventions.
+These metrics provide complete visibility into:
+- **Request rates**: Total requests, success/failure rates by event type
+- **Latency**: P50, P95, P99 response times across different event types
+- **Error rates**: Authentication failure rates by event type
 
 ### Logs
 - **Structured logging**: JSON-formatted logs with consistent fields
