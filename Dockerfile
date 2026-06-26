@@ -1,20 +1,30 @@
+ARG GO_IMAGE_VERSION=1.26-alpine
+ARG ALPINE_IMAGE_VERSION=latest
+ARG APP_NAME=oidc-authorizer
 
-FROM golang:1.26-bookworm AS builder
+FROM golang:${GO_IMAGE_VERSION} AS builder
+ARG APP_NAME
 
-WORKDIR /usr/src/app
+WORKDIR /app
 COPY go.mod go.sum ./
-RUN go mod download && go mod verify
-COPY . .
-ARG OTEL_SERVICE_NAME=oidc-authorizer
-ARG OTEL_SERVICE_VERSION=1.0.0
-ENV OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME}
-ENV OTEL_SERVICE_VERSION=${OTEL_SERVICE_VERSION}
-RUN go build -v -o /run-app cmd/main.go
+RUN go mod download
 
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+RUN CGO_ENABLED=0 GOOS=linux go build -a -ldflags="-s -w" -trimpath -o ${APP_NAME} ./cmd/main.go
 
-FROM debian:stable-slim
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /run-app /usr/local/bin/
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+FROM alpine:${ALPINE_IMAGE_VERSION}
+ARG APP_NAME
 
-CMD ["run-app"]
+RUN apk --no-cache add ca-certificates && \
+    addgroup -S ${APP_NAME} && adduser -S ${APP_NAME} -G ${APP_NAME}
+
+WORKDIR /app
+
+COPY --from=builder \
+  --chown=${APP_NAME}:${APP_NAME} \
+  --chmod=700 \
+  /app/${APP_NAME} .
+
+USER ${APP_NAME}
+CMD ["./oidc-authorizer"]
