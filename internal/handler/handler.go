@@ -17,12 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var (
-	errAttrKey             = "error"
-	v1EventTypeAttr        = attribute.String("event.type", "v1")
-	v2EventTypeAttr        = attribute.String("event.type", "v2")
-	websocketEventTypeAttr = attribute.String("event.type", "websocket")
-)
+var errAttrKey = "error"
 
 type AuthEvent struct {
 	Version string `json:"version,omitempty"`
@@ -95,7 +90,7 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 
 	switch authEvent.Version {
 	case "1.0":
-		eventTypeAttr = v1EventTypeAttr
+		eventTypeAttr = attribute.String("event.type", "v1")
 		var v1Event events.APIGatewayV2CustomAuthorizerV1Request
 		if err := json.Unmarshal(eventJson, &v1Event); err != nil {
 			logger.Error(ctx, "error unmarshalling event", eventTypeAttr, attribute.String(errAttrKey, err.Error()))
@@ -105,7 +100,7 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 		}
 
 	case "2.0":
-		eventTypeAttr = v2EventTypeAttr
+		eventTypeAttr = attribute.String("event.type", "v2")
 		var v2Event events.APIGatewayV2CustomAuthorizerV2Request
 		if err := json.Unmarshal(eventJson, &v2Event); err != nil {
 			logger.Error(ctx, "error unmarshalling event", eventTypeAttr, attribute.String(errAttrKey, err.Error()))
@@ -115,7 +110,7 @@ func (h *Handler) RouteEvent(ctx context.Context, event any) (events.APIGatewayV
 		}
 
 	default:
-		eventTypeAttr = websocketEventTypeAttr
+		eventTypeAttr = attribute.String("event.type", "websocket")
 		var websocketEvent events.APIGatewayWebsocketProxyRequest
 		if err := json.Unmarshal(eventJson, &websocketEvent); err != nil {
 			logger.Error(ctx, "error unmarshalling event", eventTypeAttr, attribute.String(errAttrKey, err.Error()))

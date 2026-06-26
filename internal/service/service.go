@@ -14,9 +14,8 @@ import (
 )
 
 var (
-	eventStatusAttrSuccess = attribute.String("status", "success")
-	eventStatusAttrError   = attribute.String("status", "error")
-	errAttrKey             = "error"
+	eventStatusAttrError = attribute.String("status", "error")
+	errAttrKey           = "error"
 )
 
 type Service struct {
@@ -85,7 +84,7 @@ func (s *Service) ValidateToken(ctx context.Context, token string) bool {
 	}
 
 	s.PrincipalID = principalID
-	span.SetAttributes(eventStatusAttrSuccess)
+	span.SetAttributes(attribute.String("status", "success"))
 	span.SetStatus(codes.Ok, "token validated successfully")
 
 	return true
