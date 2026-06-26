@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/matt-gp/core/logger"
+	"github.com/matt-gp/oidc-authorizer/internal/handler"
 
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
@@ -25,6 +26,9 @@ type Service struct {
 	PrincipalID       string
 	tracer            trace.Tracer
 }
+
+// Ensure that the Service struct implements the handler.Service interface.
+var _ handler.Service = (*Service)(nil)
 
 // New creates a new Service with the provided tracer, accepted issuers, JWKS URI, and principal ID claims.
 func New(tracer trace.Tracer, acceptedIssuers string, jwksuri string, principalIdClaims string) *Service {
